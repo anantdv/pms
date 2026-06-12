@@ -1635,9 +1635,10 @@ export default function App() {
           {/* Logo */}
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
             <svg viewBox="0 0 100 100" style={{ width: 64, height: 64 }}>
-              <rect width="100" height="100" fill="#FFDD00" rx="20"/>
+              <rect width="100" height="100" fill="#000000" rx="12"/>
+              <circle cx="50" cy="50" r="36" fill="#FFDD00"/>
               <polygon points="50,50 86,14 100,14 100,86 86,86" fill="#000000"/>
-              <line x1="24" y1="76" x2="50" y2="50" stroke="#000000" strokeWidth="8" strokeLinecap="round"/>
+              <line x1="24" y1="76" x2="50" y2="50" stroke="#000000" strokeWidth="5.5" strokeLinecap="round"/>
             </svg>
           </div>
 
