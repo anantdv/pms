@@ -700,6 +700,30 @@ export default function App() {
     fetchERPNextData();
   }, [properties.length, bookings.length, invoices.length, schedules.length]);
 
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return localStorage.getItem('pms_auth') === 'true';
+  });
+  const [loginUser, setLoginUser] = useState('');
+  const [loginPass, setLoginPass] = useState('');
+  const [loginError, setLoginError] = useState('');
+
+  const handleLoginSubmit = (e) => {
+    e.preventDefault();
+    if (loginUser === 'admin' && loginPass === 'Pms@ADV2026!@#') {
+      setIsAuthenticated(true);
+      localStorage.setItem('pms_auth', 'true');
+      setLoginError('');
+    } else {
+      setLoginError('Invalid username or password credentials.');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    localStorage.removeItem('pms_auth');
+  };
+
   // Handlers
   const handleAddProperty = (newProp) => {
     setProperties([...properties, newProp]);
@@ -1586,6 +1610,121 @@ export default function App() {
     }
   };
 
+  if (!isAuthenticated) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+        fontFamily: 'var(--font-sans)',
+        padding: '20px'
+      }}>
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.04)',
+          backdropFilter: 'blur(16px)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: '16px',
+          width: '100%',
+          maxWidth: '400px',
+          padding: '40px 32px',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)',
+          textAlign: 'center'
+        }}>
+          {/* Logo */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+            <svg viewBox="0 0 100 100" style={{ width: 64, height: 64 }}>
+              <rect width="100" height="100" fill="#FFDD00" rx="20"/>
+              <polygon points="50,50 86,14 100,14 100,86 86,86" fill="#000000"/>
+              <line x1="24" y1="76" x2="50" y2="50" stroke="#000000" strokeWidth="8" strokeLinecap="round"/>
+            </svg>
+          </div>
+
+          <h2 style={{ color: '#fff', fontSize: '1.5rem', marginBottom: '8px', fontWeight: 700 }}>Carpenters Estate</h2>
+          <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '32px' }}>Property Management System Portal</p>
+
+          <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'left' }}>
+            <div>
+              <label style={{ display: 'block', color: '#cbd5e1', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Username</label>
+              <input 
+                type="text" 
+                value={loginUser}
+                onChange={(e) => setLoginUser(e.target.value)}
+                placeholder="Enter admin username"
+                required
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  color: '#fff',
+                  fontSize: '14px',
+                  outline: 'none',
+                  transition: 'border-color 0.2s'
+                }}
+                onFocus={(e) => e.target.style.borderColor = 'var(--brand-color)'}
+                onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', color: '#cbd5e1', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Password</label>
+              <input 
+                type="password" 
+                value={loginPass}
+                onChange={(e) => setLoginPass(e.target.value)}
+                placeholder="Enter portal password"
+                required
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  color: '#fff',
+                  fontSize: '14px',
+                  outline: 'none',
+                  transition: 'border-color 0.2s'
+                }}
+                onFocus={(e) => e.target.style.borderColor = 'var(--brand-color)'}
+                onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'}
+              />
+            </div>
+
+            {loginError && (
+              <div style={{ color: '#ef4444', fontSize: '12px', fontWeight: 500, marginTop: '4px' }}>
+                {loginError}
+              </div>
+            )}
+
+            <button 
+              type="submit"
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '8px',
+                border: 'none',
+                background: 'var(--brand-color)',
+                color: '#fff',
+                fontWeight: 600,
+                fontSize: '14px',
+                cursor: 'pointer',
+                marginTop: '12px',
+                transition: 'background 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--brand-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'var(--brand-color)'}
+            >
+              Sign In to Command Center
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
       {/* Sidebar Navigation */}
@@ -1655,12 +1794,30 @@ export default function App() {
           </li>
         </ul>
 
-        <div className="sidebar-footer">
-          <div className="user-avatar">AD</div>
-          <div className="user-info">
-            <span className="user-name">Estate Admin</span>
-            <span className="user-role">Superuser</span>
+        <div className="sidebar-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="user-avatar">AD</div>
+            <div className="user-info">
+              <span className="user-name">Estate Admin</span>
+              <span className="user-role">Superuser</span>
+            </div>
           </div>
+          <button 
+            onClick={handleLogout}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-muted)',
+              fontSize: '11px',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              padding: '4px'
+            }}
+            onMouseEnter={(e) => e.target.style.color = '#ef4444'}
+            onMouseLeave={(e) => e.target.style.color = 'var(--text-muted)'}
+          >
+            Logout
+          </button>
         </div>
       </aside>
 
