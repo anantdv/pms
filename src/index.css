@@ -495,7 +495,76 @@ h1, h2, h3, h4, h5, h6 {
   gap: 30px;
 }
 
-@media (max-width: 1024px) {
+/* Mobile-First Responsive Breakpoints */
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+  }
+  
+  .sidebar {
+    width: 100% !important;
+    height: auto !important;
+    position: relative !important;
+    padding: 16px !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .sidebar-header {
+    margin-bottom: 16px !important;
+  }
+  
+  .sidebar-menu {
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding-bottom: 8px;
+    gap: 8px !important;
+  }
+  
+  .menu-item {
+    padding: 8px 12px !important;
+    white-space: nowrap;
+    font-size: 0.85rem !important;
+  }
+  
+  .menu-item span {
+    display: inline !important;
+  }
+  
+  .sidebar-brand-name, .sidebar-brand-sub, .user-info {
+    display: block !important;
+  }
+  
+  .sidebar-footer {
+    display: none !important;
+  }
+  
+  .main-content {
+    padding: 16px !important;
+  }
+  
+  .view-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  div[style*="gridTemplateColumns"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  .grid-2col {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+}
+
+@media (max-width: 1024px) and (min-width: 769px) {
   .grid-2col {
     grid-template-columns: 1fr;
   }
