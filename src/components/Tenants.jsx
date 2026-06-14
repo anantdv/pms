@@ -1,9 +1,49 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Phone, Mail, Calendar, Key, Plus, X, Award, FileText } from 'lucide-react';
 
-export default function Tenants({ tenants, properties, onAddTenant }) {
+export default function Tenants({ tenants, properties, onAddTenant, erpnextConfig }) {
   const [showModal, setShowModal] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState(null);
+  const [tenantAddress, setTenantAddress] = useState('');
+  const [loadingAddress, setLoadingAddress] = useState(false);
+
+  useEffect(() => {
+    if (!selectedTenant) {
+      setTenantAddress('');
+      return;
+    }
+    
+    // Set default/existing address if present
+    setTenantAddress(selectedTenant.address || 'Address not specified');
+
+    // Fetch address from server if config is available
+    if (erpnextConfig && erpnextConfig.url) {
+      setLoadingAddress(true);
+      fetch(`${erpnextConfig.url}/api/resource/Address?filters=[["Dynamic Link", "link_doctype", "=", "Customer"], ["Dynamic Link", "link_name", "=", "${selectedTenant.id}"]]&fields=["address_line1","address_line2","city","state","country","pincode"]`, {
+        headers: {
+          'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(res => res.json())
+      .then(json => {
+        const list = json.data || [];
+        if (list.length > 0) {
+          const addr = list[0];
+          const parts = [addr.address_line1, addr.address_line2, addr.city, addr.state, addr.country, addr.pincode].filter(Boolean);
+          setTenantAddress(parts.join(', '));
+        } else {
+          setTenantAddress('No address registered in system');
+        }
+      })
+      .catch(err => {
+        console.warn('Failed fetching tenant address:', err);
+      })
+      .finally(() => {
+        setLoadingAddress(false);
+      });
+    }
+  }, [selectedTenant, erpnextConfig]);
 
   // Pagination states & calculations
   const [currentPage, setCurrentPage] = useState(1);
@@ -64,6 +104,19 @@ export default function Tenants({ tenants, properties, onAddTenant }) {
   const [leaseStart, setLeaseStart] = useState('');
   const [leaseEnd, setLeaseEnd] = useState('');
   const [rentStatus, setRentStatus] = useState('paid');
+  const [tenantType, setTenantType] = useState('External');
+  const [unitSpec, setUnitSpec] = useState('');
+  const [rentAmount, setRentAmount] = useState('');
+  const [lastPaidAmount, setLastPaidAmount] = useState('');
+  const [lastPaidDate, setLastPaidDate] = useState('');
+
+  const handlePropertyChange = (val) => {
+    setPropertyId(val);
+    const matchedProp = properties.find(p => p.id === val);
+    if (matchedProp) {
+      setRentAmount(matchedProp.rent);
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -76,8 +129,14 @@ export default function Tenants({ tenants, properties, onAddTenant }) {
       name,
       email,
       phone,
-      propertyName: matchedProp ? matchedProp.name : 'Unknown Property',
+      propertyName: matchedProp ? `${matchedProp.name} (${unitSpec})` : 'Unknown Property',
       propertyId,
+      propertyGroup: matchedProp ? matchedProp.name : 'Unknown Property',
+      unitSpec,
+      tenantType,
+      rentAmount: Number(rentAmount || matchedProp?.rent || 0),
+      lastPaidAmount: Number(lastPaidAmount || 0),
+      lastPaidDate: lastPaidDate || 'N/A',
       leaseStart,
       leaseEnd,
       rentStatus
@@ -90,6 +149,11 @@ export default function Tenants({ tenants, properties, onAddTenant }) {
     setLeaseStart('');
     setLeaseEnd('');
     setRentStatus('paid');
+    setTenantType('External');
+    setUnitSpec('');
+    setRentAmount('');
+    setLastPaidAmount('');
+    setLastPaidDate('');
     setShowModal(false);
   };
 
@@ -116,8 +180,10 @@ export default function Tenants({ tenants, properties, onAddTenant }) {
                 <tr>
                   <th>Tenant ID</th>
                   <th>Full Name</th>
-                  <th>Contact</th>
-                  <th>Assigned Property</th>
+                  <th>Tenant Type</th>
+                  <th>Assigned Lease Space</th>
+                  <th>Rent Amount</th>
+                  <th>Last Paid</th>
                   <th>Rent Status</th>
                 </tr>
               </thead>
@@ -138,18 +204,27 @@ export default function Tenants({ tenants, properties, onAddTenant }) {
                         <div className="user-avatar" style={{ margin: 0, width: 32, height: 32, fontSize: 12 }}>
                           {tenant.name.split(' ').map(n=>n[0]).join('')}
                         </div>
-                        <div style={{ fontWeight: 600 }}>{tenant.name}</div>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: '0.85rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
-                          <Mail size={12} /> {tenant.email}
+                        <div>
+                          <div style={{ fontWeight: 600 }}>{tenant.name}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{tenant.email}</div>
                         </div>
                       </div>
                     </td>
                     <td>
-                      <span style={{ fontWeight: 500 }}>{tenant.propertyName}</span>
+                      <span className={`badge ${tenant.tenantType === 'Internal' ? 'badge-info' : 'badge-secondary'}`}>
+                        {tenant.tenantType || 'External'}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{tenant.propertyGroup || tenant.propertyName}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Unit: {tenant.unitSpec || 'N/A'}</div>
+                    </td>
+                    <td style={{ fontWeight: 600 }}>
+                      ${(tenant.rentAmount || 0).toLocaleString()}
+                    </td>
+                    <td>
+                      <div>${(tenant.lastPaidAmount || 0).toLocaleString()}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{tenant.lastPaidDate || 'N/A'}</div>
                     </td>
                     <td>
                       <span className={`badge ${tenant.rentStatus === 'paid' ? 'badge-success' : tenant.rentStatus === 'pending' ? 'badge-warning' : 'badge-danger'}`}>
@@ -185,7 +260,10 @@ export default function Tenants({ tenants, properties, onAddTenant }) {
                 {selectedTenant.name.split(' ').map(n=>n[0]).join('')}
               </div>
               <h2 style={{ fontSize: '1.3rem', marginBottom: 4 }}>{selectedTenant.name}</h2>
-              <span className={`badge ${selectedTenant.rentStatus === 'paid' ? 'badge-success' : 'badge-warning'}`}>Account {selectedTenant.rentStatus}</span>
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center' }}>
+                <span className={`badge ${selectedTenant.rentStatus === 'paid' ? 'badge-success' : 'badge-warning'}`}>Account {selectedTenant.rentStatus}</span>
+                <span className={`badge ${selectedTenant.tenantType === 'Internal' ? 'badge-info' : 'badge-secondary'}`}>{selectedTenant.tenantType || 'External'}</span>
+              </div>
             </div>
 
             {/* Contact Details Card */}
@@ -212,12 +290,25 @@ export default function Tenants({ tenants, properties, onAddTenant }) {
                 </a>
               </div>
 
-              {selectedTenant.address && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, borderTop: '1px solid var(--border-color)', paddingTop: 10 }}>
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Registered Address</span>
-                  <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{selectedTenant.address}</span>
-                </div>
-              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, borderTop: '1px solid var(--border-color)', paddingTop: 10 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Registered Address</span>
+                <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+                  {loadingAddress ? <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Loading address...</span> : tenantAddress}
+                </span>
+              </div>
+            </div>
+
+            {/* Rent and Last Paid Details */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div style={{ background: 'rgba(255,255,255,0.01)', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 12 }}>
+                <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: 10, textTransform: 'uppercase', marginBottom: 2 }}>Rent Amount</span>
+                <span style={{ fontWeight: 700, color: 'var(--brand-color)', fontSize: '1.05rem' }}>${(selectedTenant.rentAmount || 0).toLocaleString()}/mo</span>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.01)', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: 12 }}>
+                <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: 10, textTransform: 'uppercase', marginBottom: 2 }}>Last Paid</span>
+                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>${(selectedTenant.lastPaidAmount || 0).toLocaleString()}</span>
+                <span style={{ display: 'block', fontSize: 9, color: 'var(--text-secondary)', marginTop: 2 }}>on {selectedTenant.lastPaidDate || 'N/A'}</span>
+              </div>
             </div>
 
             {/* Lease Metadata */}
@@ -235,7 +326,8 @@ export default function Tenants({ tenants, properties, onAddTenant }) {
             {/* Assigned Unit Space */}
             <div style={{ background: 'var(--bg-tertiary)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <h3 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Assigned Lease Space</h3>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{selectedTenant.propertyName}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{selectedTenant.propertyGroup || selectedTenant.propertyName}</div>
+              {selectedTenant.unitSpec && <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Unit Spec: <strong>{selectedTenant.unitSpec}</strong></div>}
               <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Asset Space ID: <strong>{selectedTenant.propertyId}</strong></div>
             </div>
 
@@ -257,10 +349,19 @@ export default function Tenants({ tenants, properties, onAddTenant }) {
               <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 20 }}>×</button>
             </div>
             <form onSubmit={handleSubmit}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label className="form-label">Full Name</label>
-                  <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Johnathan Doe" className="form-input" required />
+              <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1.2fr 0.8fr' }}>
+                  <div className="form-group">
+                    <label className="form-label">Full Name</label>
+                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Johnathan Doe" className="form-input" required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Tenant Type</label>
+                    <select value={tenantType} onChange={(e) => setTenantType(e.target.value)} className="form-select">
+                      <option value="Internal">Internal</option>
+                      <option value="External">External</option>
+                    </select>
+                  </div>
                 </div>
                 
                 <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
@@ -274,14 +375,35 @@ export default function Tenants({ tenants, properties, onAddTenant }) {
                   </div>
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">Assign Asset / Property Space</label>
-                  <select value={propertyId} onChange={(e) => setPropertyId(e.target.value)} className="form-select" required>
-                    <option value="">-- Choose space --</option>
-                    {properties.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.id}) - Rent: ${p.rent}/mo</option>
-                    ))}
-                  </select>
+                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1.2fr 0.8fr' }}>
+                  <div className="form-group">
+                    <label className="form-label">Assign Property Group</label>
+                    <select value={propertyId} onChange={(e) => handlePropertyChange(e.target.value)} className="form-select" required>
+                      <option value="">-- Choose property group --</option>
+                      {properties.map(p => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Unit Spec</label>
+                    <input type="text" value={unitSpec} onChange={(e) => setUnitSpec(e.target.value)} placeholder="e.g. Flat 4B" className="form-input" required />
+                  </div>
+                </div>
+
+                <div className="grid-3col" style={{ gap: 16, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+                  <div className="form-group">
+                    <label className="form-label">Rent Amount ($)</label>
+                    <input type="number" value={rentAmount} onChange={(e) => setRentAmount(e.target.value)} placeholder="Rent / mo" className="form-input" required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Last Paid ($)</label>
+                    <input type="number" value={lastPaidAmount} onChange={(e) => setLastPaidAmount(e.target.value)} placeholder="Last paid" className="form-input" required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Last Paid Date</label>
+                    <input type="date" value={lastPaidDate} onChange={(e) => setLastPaidDate(e.target.value)} className="form-input" />
+                  </div>
                 </div>
 
                 <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>

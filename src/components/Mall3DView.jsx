@@ -646,7 +646,7 @@ export default function Mall3DView({ compact = false, properties = [] }) {
             <Building size={22} className="text-yellow" style={{ color: 'var(--brand-color)' }} />
             Premium 3D Architecture Tracker
           </h2>
-          <p className="view-subtitle">High-fidelity glass & wood duplex layout visualizer. Click and drag to orbit model.</p>
+          <p className="view-subtitle">High-fidelity architectural blueprint and layout visualizer. Static layout preview reference.</p>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -663,185 +663,59 @@ export default function Mall3DView({ compact = false, properties = [] }) {
               ))}
             </select>
           </div>
-          <button 
-            className={`btn ${showAllFloors ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setShowAllFloors(!showAllFloors)}
-            style={{ padding: '6px 12px', fontSize: 12 }}
-          >
-            <Layers size={14} /> {showAllFloors ? 'Stack Layout' : 'Focus Level'}
-          </button>
         </div>
       </div>
 
-      <div className="grid-2col" style={{ gridTemplateColumns: compact ? '2fr 1fr' : '78% calc(22% - 24px)', gap: compact ? 16 : 24 }}>
-        <div style={{ position: 'relative', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-          {!showAllFloors && (
-            <div style={{ position: 'absolute', top: 16, left: 16, display: 'flex', flexDirection: 'column', gap: 6, zIndex: 10 }}>
-              <button className={`btn btn-sm ${activeFloor === 1 ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveFloor(1)} style={{ padding: '4px 8px', fontSize: 11 }}>L1: Mezzanine & Balcony</button>
-              <button className={`btn btn-sm ${activeFloor === 0 ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveFloor(0)} style={{ padding: '4px 8px', fontSize: 11 }}>GF: Glass Cafe & Wood Lounge</button>
-            </div>
-          )}
-
-          <canvas 
-            ref={canvasRef}
-            style={{ width: '100%', height: compact ? 420 : 560, display: 'block', cursor: isDragging.current ? 'grabbing' : hoveredUnit ? 'pointer' : 'default', borderRadius: 'var(--radius-lg)' }}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseLeave}
-            onClick={handleCanvasClick}
+      <div style={{ 
+        background: 'var(--bg-secondary)', 
+        borderRadius: 'var(--radius-lg)', 
+        border: '1px solid var(--border-color)',
+        padding: '30px', 
+        display: 'flex', 
+        flexDirection: 'column', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        minHeight: '450px',
+        gap: '20px'
+      }}>
+        <div style={{ 
+          maxWidth: '720px', 
+          width: '100%', 
+          borderRadius: 'var(--radius-md)', 
+          overflow: 'hidden', 
+          boxShadow: 'var(--shadow-md)',
+          border: '1px solid var(--border-color)',
+          background: '#ffffff',
+          padding: '10px'
+        }}>
+          <img 
+            src="/house.png" 
+            alt="3D Building Architecture Preview" 
+            style={{ 
+              width: '100%', 
+              height: 'auto', 
+              display: 'block', 
+              borderRadius: 'var(--radius-sm)'
+            }} 
           />
-
-          <div style={{ position: 'absolute', bottom: 16, left: 16, right: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(15, 23, 42, 0.9)', padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid #334155', color: '#f8fafc', zIndex: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-              <span style={{ fontSize: 11, color: '#94a3b8' }}>Orbit Yaw</span>
-              <input type="range" min="5" max="85" value={rotation} onChange={(e) => setRotation(Number(e.target.value))} style={{ accentColor: 'var(--brand-color)', width: 80 }} />
-              
-              <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 10 }}>Pitch</span>
-              <input type="range" min="20" max="70" value={Math.round(tilt * 100)} onChange={(e) => setTilt(Number(e.target.value) / 100)} style={{ accentColor: 'var(--brand-color)', width: 80 }} />
-              
-              <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 10 }}>Scale</span>
-              <input type="range" min="30" max="75" value={zoom} onChange={(e) => setZoom(Number(e.target.value))} style={{ accentColor: 'var(--brand-color)', width: 80 }} />
-            </div>
-            
-            <div style={{ display: 'flex', gap: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981' }} />
-                <span style={{ fontSize: 10, color: '#cbd5e1' }}>Vacant</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444' }} />
-                <span style={{ fontSize: 10, color: '#cbd5e1' }}>Occupied</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b' }} />
-                <span style={{ fontSize: 10, color: '#cbd5e1' }}>Service</span>
-              </div>
-            </div>
-          </div>
-
-          {hoveredUnit && (showAllFloors || activeFloor === hoveredUnit.floor) && (
-            <div style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(15, 23, 42, 0.95)', border: '1px solid #334155', borderRadius: 'var(--radius-md)', padding: 14, width: 230, pointerEvents: 'none', boxShadow: 'var(--shadow-lg)', backdropFilter: 'blur(10px)', color: '#f8fafc', zIndex: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 10, color: 'var(--brand-color)', fontWeight: 600 }}>{hoveredUnit.id}</span>
-                <span className={`badge ${hoveredUnit.status === 'vacant' ? 'badge-success' : hoveredUnit.status === 'occupied' ? 'badge-danger' : hoveredUnit.status === 'maintenance' ? 'badge-warning' : 'badge-info'}`} style={{ color: '#fff' }}>
-                  {hoveredUnit.status}
-                </span>
-              </div>
-              <h4 style={{ fontSize: 13, marginBottom: 8, color: '#ffffff' }}>{hoveredUnit.name}</h4>
-              
-              <div style={{ borderTop: '1px solid #334155', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, color: '#94a3b8' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Area:</span>
-                  <span style={{ color: '#ffffff', fontWeight: 500 }}>{hoveredUnit.area} sq ft</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Base Rent:</span>
-                  <span style={{ color: '#ffffff', fontWeight: 500 }}>${hoveredUnit.rent}/mo</span>
-                </div>
-                {hoveredUnit.tenant && (
-                  <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                      <span>Tenant:</span>
-                      <span style={{ color: 'var(--brand-color)', fontWeight: 600 }}>{hoveredUnit.tenant}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Category:</span>
-                      <span style={{ color: '#ffffff' }}>{hoveredUnit.category}</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
         </div>
-
-        {/* Space Aggregator Controls */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div className="card-panel" style={{ padding: 18, background: 'var(--bg-secondary)', borderStyle: 'dashed' }}>
-            <h3 style={{ fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              Space Aggregator
-            </h3>
-            <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 14 }}>
-              Select multiple vacant structures on the 3D model to merge them.
-            </p>
-
-            {selectedUnitIds.length > 0 ? (
-              <div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-                  {selectedUnitIds.map(id => (
-                    <span key={id} className="badge badge-success" style={{ gap: 4 }}>
-                      {id}
-                      <span style={{ cursor: 'pointer', fontWeight: 900 }} onClick={() => setSelectedUnitIds(selectedUnitIds.filter(x => x !== id))}>×</span>
-                    </span>
-                  ))}
-                </div>
-
-                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 10, marginBottom: 14, fontSize: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Combined Area:</span>
-                    <span style={{ fontWeight: 600 }}>
-                      {units.filter(u => selectedUnitIds.includes(u.id)).reduce((acc, u) => acc + u.area, 0)} sq ft
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Merge Rent (10% off):</span>
-                    <span style={{ color: 'var(--brand-color)', fontWeight: 600 }}>
-                      ${Math.round(units.filter(u => selectedUnitIds.includes(u.id)).reduce((acc, u) => acc + u.rent, 0) * 0.9)}/mo
-                    </span>
-                  </div>
-                </div>
-
-                <button 
-                  className="btn btn-primary" 
-                  disabled={selectedUnitIds.length < 2} 
-                  style={{ width: '100%', fontSize: 12 }}
-                  onClick={handleCreateAggregation}
-                >
-                  <Plus size={13} /> Merge Selected Units
-                </button>
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--text-muted)', fontSize: 12 }}>
-                Click vacant nodes on the building layout map.
-              </div>
-            )}
-          </div>
-
-          <div>
-            <h3 style={{ fontSize: '0.9rem', marginBottom: 10 }}>
-              Active Merged Spaces ({aggregatedSpaces.length})
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {aggregatedSpaces.map(space => (
-                <div key={space.id} style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--brand-color)' }}>{space.name}</span>
-                    <button 
-                      onClick={() => handleDeleteAggregation(space.id)}
-                      style={{ background: 'none', border: 'none', color: 'var(--color-danger)', cursor: 'pointer', display: 'flex', padding: 2 }}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
-                    {space.units.map(uId => (
-                      <span key={uId} className="badge badge-info" style={{ fontSize: 9, padding: '2px 6px' }}>{uId}</span>
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-secondary)' }}>
-                    <span>Area: <strong>{space.area} sq ft</strong></span>
-                    <span>Rent: <strong>${space.rent}/mo</strong></span>
-                  </div>
-                </div>
-              ))}
-              {aggregatedSpaces.length === 0 && (
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '10px 0' }}>
-                  No aggregated structures.
-                </div>
-              )}
-            </div>
-          </div>
+        
+        <div style={{ textAlign: 'center', maxWidth: '500px' }}>
+          <span style={{ 
+            fontSize: '11px', 
+            fontWeight: 700, 
+            color: 'var(--brand-color)', 
+            textTransform: 'uppercase', 
+            letterSpacing: '0.05em', 
+            background: 'var(--bg-accent-alpha)', 
+            padding: '4px 10px', 
+            borderRadius: '12px' 
+          }}>
+            Static Asset Reference
+          </span>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '10px', lineHeight: 1.5 }}>
+            This layout references the structural plan for the selected property block. Full interactive 3D model orbit features are disabled during architecture synchronization.
+          </p>
         </div>
       </div>
     </div>

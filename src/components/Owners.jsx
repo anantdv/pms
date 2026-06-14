@@ -83,7 +83,7 @@ export default function Owners({ owners }) {
         </div>
         <div className="stat-card">
           <div className="stat-header">
-            <span>Aggregated Owner Equity</span>
+            <span>Aggregated Owner Revenue Share</span>
             <DollarSign size={18} />
           </div>
           <div className="stat-value">$4.2M</div>
@@ -102,7 +102,7 @@ export default function Owners({ owners }) {
                 <tr>
                   <th>Owner ID</th>
                   <th>Owner Details</th>
-                  <th>Equity Share</th>
+                  <th>Revenue Share</th>
                   <th>Last Payout Log</th>
                   <th>Verification</th>
                 </tr>
@@ -229,7 +229,7 @@ export default function Owners({ owners }) {
             
             <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: 14 }}>
               <button className="btn btn-secondary" style={{ width: '100%', fontSize: 12, gap: 8 }}>
-                <TrendingUp size={14} /> View Equity Performance
+                <TrendingUp size={14} /> View Revenue Share Performance
               </button>
             </div>
           </div>

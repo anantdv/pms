@@ -1,7 +1,153 @@
 import React, { useState, useEffect } from 'react';
 import { Home, Building2, Plus, Globe, Search, ArrowRight, ShieldCheck, X, Grid, Info } from 'lucide-react';
 
-export default function Properties({ properties, onAddProperty, onToggleListOnline, erpnextConfig }) {
+const fallbackImages = {
+  residential: [
+    'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80'
+  ],
+  commercial: [
+    'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80'
+  ],
+  mall: [
+    'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1569058242253-92a9c755a0ec?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1582037928769-181f2644ecb7?auto=format&fit=crop&w=800&q=80'
+  ]
+};
+
+const unitFallbackImages = {
+  residential: [
+    'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80'
+  ],
+  commercial: [
+    'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=800&q=80'
+  ],
+  mall: [
+    'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1511556532299-8f662fc26c06?auto=format&fit=crop&w=800&q=80'
+  ]
+};
+
+function SecureImage({ src, alt, style, className, erpnextConfig }) {
+  const [imgSrc, setImgSrc] = useState(null);
+
+  useEffect(() => {
+    if (!src) return;
+    if (src.startsWith('data:') || !src.includes('/private/')) {
+      setImgSrc(src);
+      return;
+    }
+
+    const controller = new AbortController();
+    const headers = {};
+    if (erpnextConfig && erpnextConfig.apiKey) {
+      headers['Authorization'] = `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`;
+    } else {
+      headers['Authorization'] = 'token ed0af4eb51b07ca:650a348e03a9928';
+    }
+
+    async function fetchImage() {
+      try {
+        const res = await fetch(src, {
+          headers,
+          signal: controller.signal
+        });
+        if (res.ok) {
+          const blob = await res.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          setImgSrc(objectUrl);
+        } else {
+          setImgSrc(src);
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          setImgSrc(src);
+        }
+      }
+    }
+
+    fetchImage();
+
+    return () => {
+      controller.abort();
+    };
+  }, [src, erpnextConfig]);
+
+  return <img src={imgSrc || src} alt={alt} style={style} className={className} />;
+}
+
+function ImageCarousel({ images, height = 180, erpnextConfig }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  if (!images || images.length === 0) return null;
+
+  const handlePrev = (e) => {
+    e.stopPropagation();
+    setActiveIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+  };
+
+  const handleNext = (e) => {
+    e.stopPropagation();
+    setActiveIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+  };
+
+  return (
+    <div style={{ position: 'relative', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)', background: '#1e293b', height }}>
+      <div style={{ display: 'flex', width: `${images.length * 100}%`, height: '100%', transform: `translateX(-${(activeIndex * 100) / images.length}%)`, transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+        {images.map((img, i) => (
+          <div key={i} style={{ width: `${100 / images.length}%`, height: '100%', flexShrink: 0 }}>
+            <SecureImage 
+              src={img} 
+              alt={`slide-${i}`} 
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              erpnextConfig={erpnextConfig}
+            />
+          </div>
+        ))}
+      </div>
+      
+      {images.length > 1 && (
+        <>
+          <button 
+            type="button"
+            onClick={handlePrev}
+            style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10, backdropFilter: 'blur(4px)' }}
+          >
+            ‹
+          </button>
+          <button 
+            type="button"
+            onClick={handleNext}
+            style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10, backdropFilter: 'blur(4px)' }}
+          >
+            ›
+          </button>
+          
+          <div style={{ position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, zIndex: 10 }}>
+            {images.map((_, i) => (
+              <div 
+                key={i} 
+                onClick={(e) => { e.stopPropagation(); setActiveIndex(i); }}
+                style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: i === activeIndex ? 'var(--brand-color)' : 'rgba(255,255,255,0.5)', cursor: 'pointer', transition: 'all 0.2s' }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+export default function Properties({ properties, onAddProperty, onToggleListOnline, erpnextConfig, onScheduleMaintenance }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [filterType, setFilterType] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -398,30 +544,25 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
 
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {/* Unit Space Image Viewer (Top) */}
+                  {(() => {
+                    const unitFallbackImages = {
+                      residential: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80',
+                      commercial: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80',
+                      mall: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80'
+                    };
+                    const imgs = (details.custom_unit_images && details.custom_unit_images.length > 0)
+                      ? details.custom_unit_images.map(item => item.image.startsWith('http') ? item.image : `${erpnextConfig?.url || ''}${item.image}`)
+                      : (details.image ? [details.image.startsWith('http') ? details.image : `${erpnextConfig?.url || ''}${details.image}`] : [unitFallbackImages[selectedProp.type] || unitFallbackImages.commercial]);
+                    return <ImageCarousel images={imgs} height={160} erpnextConfig={erpnextConfig} />;
+                  })()}
+
                   <div>
                     <h4 style={{ fontSize: '1rem', fontWeight: 700 }}>{matchedUnit?.unit_name || selectedUnitId}</h4>
                     <span className={`badge ${details.status === 'occupied' ? 'badge-danger' : 'badge-success'}`} style={{ marginTop: 4 }}>
                       {details.status}
                     </span>
                   </div>
-
-                  {/* Unit Space Image Viewer */}
-                  {(() => {
-                    const imageUrl = details.image ? (details.image.startsWith('http') ? details.image : `${erpnextConfig.url || 'http://192.168.101.180:8980'}${details.image}`) : null;
-                    if (!imageUrl) return null;
-                    return (
-                      <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)', background: '#1e293b', marginTop: 4 }}>
-                        <img 
-                          src={imageUrl} 
-                          alt="Unit Space" 
-                          style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }}
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                          }}
-                        />
-                      </div>
-                    );
-                  })()}
 
                   <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 11, color: 'var(--text-secondary)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -468,10 +609,11 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                       return !keysToHide.includes(key.toLowerCase());
                     }).map(key => (
                       <div key={key} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ textTransform: 'capitalize' }}>{key.replace(/_/g, ' ')}:</span>
+                        <span style={{ textTransform: 'capitalize' }}>{key.replace(/^custom_/, '').replace(/_custom_/gi, '_').replace(/custom/gi, '').replace(/_/g, ' ').trim()}:</span>
                         <strong style={{ color: 'var(--text-primary)' }}>{String(details[key])}</strong>
                       </div>
                     ))}
+
                   </div>
                 </div>
               );
@@ -496,7 +638,7 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                     <th>Type</th>
                     <th>Land Description</th>
                     <th>Lease End</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
+                    <th style={{ textAlign: 'right' }}>Picture</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -513,7 +655,12 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                       <td style={{ fontWeight: 600, color: 'var(--brand-color)' }}>{prop.id}</td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          {(prop.land_and_building_type || prop.type) === 'residential' ? <Home size={18} className="text-secondary" /> : <Building2 size={18} className="text-secondary" />}
+                          <SecureImage 
+                            src={prop.image || fallbackImages[prop.type]?.[0] || fallbackImages.commercial[0]} 
+                            alt="" 
+                            style={{ width: 26, height: 26, objectFit: 'cover', borderRadius: '50%', border: '1px solid var(--border-color)' }} 
+                            erpnextConfig={erpnextConfig}
+                          />
                           <div>
                             <div style={{ fontWeight: 600 }}>{prop.name}</div>
                             <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{prop.address}</div>
@@ -529,24 +676,17 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                         {prop.land_description || `Plot size: ${prop.area.toLocaleString()} sq ft`}
                       </td>
                       <td>
-                        <span className="badge badge-warning" style={{ background: 'rgba(217, 119, 6, 0.1)', color: 'var(--brand-color)' }}>
+                        <span className="badge badge-warning" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--brand-color)' }}>
                           {prop.lease_end_date || '2026-12-31'}
                         </span>
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <button 
-                          className={`btn btn-secondary ${prop.listedOnline ? 'btn-danger' : 'btn-primary'}`} 
-                          style={{ padding: '4px 10px', fontSize: 10 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleListOnline(prop.id);
-                            if (selectedProp?.id === prop.id) {
-                              setSelectedProp({ ...selectedProp, listedOnline: !selectedProp.listedOnline });
-                            }
-                          }}
-                        >
-                          <Globe size={11} /> {prop.listedOnline ? 'Delist' : 'List Online'}
-                        </button>
+                        <SecureImage 
+                          src={prop.image || fallbackImages[prop.type]?.[0] || fallbackImages.commercial[0]} 
+                          alt={prop.name} 
+                          style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', display: 'inline-block' }} 
+                          erpnextConfig={erpnextConfig}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -580,6 +720,14 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                     <X size={18} />
                   </button>
                 </div>
+
+                {/* Property Group Image at top */}
+                {(() => {
+                  const imgs = (p.gallery && p.gallery.length > 0)
+                    ? p.gallery.map(item => item.image.startsWith('http') ? item.image : `${erpnextConfig?.url || ''}${item.image}`)
+                    : (p.image ? [p.image] : (fallbackImages[p.type] || fallbackImages.commercial));
+                  return <ImageCarousel images={imgs} height={180} erpnextConfig={erpnextConfig} />;
+                })()}
 
                 <div>
                   <h2 style={{ fontSize: '1.25rem', marginBottom: 4 }}>{p.name}</h2>
@@ -659,6 +807,17 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                               <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border-color)', background: 'rgba(255, 255, 255, 0.01)', fontSize: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
                                 {details ? (
                                   <>
+                                    {/* Unit Space Image Carousel (Top) */}
+                                    {(() => {
+                                      const imgs = (details.custom_unit_images && details.custom_unit_images.length > 0)
+                                        ? details.custom_unit_images.map(item => item.image.startsWith('http') ? item.image : `${erpnextConfig?.url || ''}${item.image}`)
+                                        : (details.image ? [details.image.startsWith('http') ? details.image : `${erpnextConfig?.url || ''}${details.image}`] : (unitFallbackImages[p.type] || unitFallbackImages.commercial));
+                                      return (
+                                        <div style={{ marginBottom: 8 }}>
+                                          <ImageCarousel images={imgs} height={120} erpnextConfig={erpnextConfig} />
+                                        </div>
+                                      );
+                                    })()}
                                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                       <span style={{ color: 'var(--text-secondary)' }}>Standard Rent:</span>
                                       <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>${(details.rent || unit.rent || 0).toLocaleString()}/mo</span>
@@ -703,10 +862,11 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                                       return !keysToHide.includes(key.toLowerCase());
                                     }).map(key => (
                                       <div key={key} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span style={{ color: 'var(--text-secondary)', textTransform: 'capitalize' }}>{key.replace(/_/g, ' ')}:</span>
+                                        <span style={{ color: 'var(--text-secondary)', textTransform: 'capitalize' }}>{key.replace(/^custom_/, '').replace(/_custom_/gi, '_').replace(/custom/gi, '').replace(/_/g, ' ').trim()}:</span>
                                         <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{String(details[key])}</span>
                                       </div>
                                     ))}
+
                                   </>
                                 ) : (
                                   <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '6px 0' }}>Loading unit details...</div>
@@ -726,13 +886,20 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                 <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: 14, display: 'flex', gap: 10 }}>
                   <button 
                     className={`btn ${p.listedOnline ? 'btn-danger' : 'btn-primary'}`}
-                    style={{ width: '100%', fontSize: 12 }}
+                    style={{ flex: 1, fontSize: 12 }}
                     onClick={() => {
                       onToggleListOnline(p.id);
                       setSelectedProp({ ...p, listedOnline: !p.listedOnline });
                     }}
                   >
-                    <Globe size={13} /> {p.listedOnline ? 'Delist Market' : 'Syndicate Market'}
+                    <Globe size={13} /> {p.listedOnline ? 'Delist' : 'List Online'}
+                  </button>
+                  <button 
+                    className="btn btn-secondary"
+                    style={{ flex: 1, fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                    onClick={() => onScheduleMaintenance(p)}
+                  >
+                    Schedule Maintenance
                   </button>
                 </div>
               </div>

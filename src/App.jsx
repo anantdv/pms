@@ -14,7 +14,8 @@ import {
   FileText,
   Briefcase,
   Bookmark,
-  Calendar
+  Calendar,
+  FileSignature
 } from 'lucide-react';
 
 // Import Components
@@ -29,6 +30,7 @@ import Support from './components/Support';
 import Mall3DView from './components/Mall3DView';
 import HRMS, { INITIAL_EMPLOYEES } from './components/HRMS';
 import Reports from './components/Reports';
+import Quotation from './components/Quotation';
 import { ERPNEXT_CONFIG } from './config';
 
 // Sample INITIAL MOCK DATA
@@ -40,10 +42,10 @@ const INITIAL_PROPERTIES = [
 ];
 
 const INITIAL_TENANTS = [
-  { id: 'TEN-801', name: 'John Doe', email: 'john.doe@gmail.com', phone: '+44 7911 884723', address: 'Flat 4B, Stratford Court, 12 Carpenters Road, London E15', propertyName: 'Stratford Court Apartments', propertyId: 'PROP-2041', leaseStart: '2025-01-01', leaseEnd: '2026-01-01', rentStatus: 'paid' },
-  { id: 'TEN-802', name: 'Sarah Jenkins', email: 'sjenkins@techglow.co.uk', phone: '+44 7822 990145', address: 'Unit C, Carpenters Row, 44 Stratford High St, London E15', propertyName: 'Carpenters Row Commercial', propertyId: 'PROP-8032', leaseStart: '2024-06-15', leaseEnd: '2027-06-15', rentStatus: 'pending' },
-  { id: 'TEN-803', name: 'Aroma Brews Co. (Fiona)', email: 'fiona@aromabrews.com', phone: '+44 7733 112233', address: 'Shop G-101, Galleria Mall, Golden Loop Blvd, London E15', propertyName: 'Estate Galleria Mall (G-101)', propertyId: 'PROP-9910', leaseStart: '2024-03-01', leaseEnd: '2029-03-01', rentStatus: 'paid' },
-  { id: 'TEN-804', name: 'David Smith', email: 'dsmith@gmail.com', phone: '+44 7911 556677', address: 'Flat 12A, Stratford Court, 12 Carpenters Road, London E15', propertyName: 'Stratford Court Apartments', propertyId: 'PROP-2041', leaseStart: '2025-03-01', leaseEnd: '2026-03-01', rentStatus: 'overdue' }
+  { id: 'TEN-801', name: 'John Doe', email: 'john.doe@gmail.com', phone: '+44 7911 884723', address: 'Flat 4B, Stratford Court, 12 Carpenters Road, London E15', propertyName: 'Stratford Court Apartments', propertyId: 'PROP-2041', propertyGroup: 'Stratford Court Apartments', unitSpec: 'Flat 4B', tenantType: 'Internal', rentAmount: 1850, lastPaidAmount: 1850, lastPaidDate: '2026-05-02', leaseStart: '2025-01-01', leaseEnd: '2026-01-01', rentStatus: 'paid' },
+  { id: 'TEN-802', name: 'Sarah Jenkins', email: 'sjenkins@techglow.co.uk', phone: '+44 7822 990145', address: 'Unit C, Carpenters Row, 44 Stratford High St, London E15', propertyName: 'Carpenters Row Commercial', propertyId: 'PROP-8032', propertyGroup: 'Carpenters Row Commercial', unitSpec: 'Unit C', tenantType: 'External', rentAmount: 4800, lastPaidAmount: 4800, lastPaidDate: '2026-04-30', leaseStart: '2024-06-15', leaseEnd: '2027-06-15', rentStatus: 'pending' },
+  { id: 'TEN-803', name: 'Aroma Brews Co. (Fiona)', email: 'fiona@aromabrews.com', phone: '+44 7733 112233', address: 'Shop G-101, Galleria Mall, Golden Loop Blvd, London E15', propertyName: 'Estate Galleria Mall (G-101)', propertyId: 'PROP-9910', propertyGroup: 'Estate Galleria Mall', unitSpec: 'Shop G-101', tenantType: 'External', rentAmount: 5500, lastPaidAmount: 5500, lastPaidDate: '2026-05-28', leaseStart: '2024-03-01', leaseEnd: '2029-03-01', rentStatus: 'paid' },
+  { id: 'TEN-804', name: 'David Smith', email: 'dsmith@gmail.com', phone: '+44 7911 556677', address: 'Flat 12A, Stratford Court, 12 Carpenters Road, London E15', propertyName: 'Stratford Court Apartments', propertyId: 'PROP-2041', propertyGroup: 'Stratford Court Apartments', unitSpec: 'Flat 12A', tenantType: 'Internal', rentAmount: 1850, lastPaidAmount: 1850, lastPaidDate: '2026-04-05', leaseStart: '2025-03-01', leaseEnd: '2026-03-01', rentStatus: 'overdue' }
 ];
 
 const INITIAL_OWNERS = [
@@ -134,6 +136,7 @@ const INITIAL_SUPPORT = [
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState('dashboard');
+  const [preSelectedProperty, setPreSelectedProperty] = useState(null);
   
   // App Global State
   const [properties, setProperties] = useState(INITIAL_PROPERTIES);
@@ -243,7 +246,8 @@ export default function App() {
                 listedOnline: p.listed_online || false,
                 occupancy,
                 land_description: p.land_description || 'Standard Land Plot',
-                lease_end_date: p.lease_end_date || '2026-12-31'
+                lease_end_date: p.lease_end_date || '2026-12-31',
+                image: p.image || null
               };
             });
             setProperties(finalProps);
@@ -252,7 +256,7 @@ export default function App() {
       } catch (err) {
         console.warn('ERPNext API get_property_groups fetch failed, trying standard resource:', err);
         try {
-          const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Property%20Group?fields=["name","land_and_building_type","locality","district","country","land_description","lease_start_date","lease_end_date","no_of_floors"]&limit_page_length=200`, {
+          const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Property%20Group?fields=["name","land_and_building_type","locality","district","country","land_description","lease_start_date","lease_end_date","no_of_floors","image"]&limit_page_length=200`, {
             headers: {
               'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
               'Content-Type': 'application/json'
@@ -304,7 +308,8 @@ export default function App() {
                   listedOnline: p.listed_online || false,
                   occupancy: Math.floor(65 + Math.random() * 31),
                   land_description: p.land_description || 'Standard Land Plot',
-                  lease_end_date: p.lease_end_date || '2026-12-31'
+                  lease_end_date: p.lease_end_date || '2026-12-31',
+                  image: p.image || null
                 };
               });
               setProperties(finalProps);
@@ -317,7 +322,7 @@ export default function App() {
 
       // 1b. Fetch Bookings for statistics
       try {
-        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Booking?fields=["name","property","booking_date","booking_amount","status","starting_date","ending_date"]&limit_page_length=500`, {
+        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Booking?fields=["name","property","booking_date","booking_amount","status","starting_date","ending_date","customer"]&limit_page_length=500`, {
           headers: {
             'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
             'Content-Type': 'application/json'
@@ -332,9 +337,47 @@ export default function App() {
         console.warn('Failed to fetch bookings for stats:', err);
       }
 
+      // 8. Fetch Sales Invoice for Billing Ledger
+      let finalInvoices = [];
+      try {
+        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Sales%20Invoice?fields=%5B%22name%22%2C%22customer%22%2C%22customer_name%22%2C%22posting_date%22%2C%22due_date%22%2C%22grand_total%22%2C%22status%22%5D&limit_page_length=500`, {
+          headers: {
+            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          finalInvoices = data.data || data;
+          if (Array.isArray(finalInvoices) && finalInvoices.length > 0) {
+            setInvoices(finalInvoices.map(inv => {
+              const statusLower = (inv.status || 'pending').toLowerCase();
+              let mappedStatus = 'pending';
+              if (statusLower === 'paid') {
+                mappedStatus = 'paid';
+              } else if (statusLower === 'overdue') {
+                mappedStatus = 'overdue';
+              }
+              return {
+                id: inv.name,
+                tenantName: inv.customer_name || 'ERPNext Tenant',
+                customer: inv.customer,
+                propertyId: 'PROP-2041',
+                amount: inv.grand_total || 2500,
+                issuedDate: inv.posting_date || '2026-06-01',
+                dueDate: inv.due_date || '2026-06-10',
+                status: mappedStatus
+              };
+            }));
+          }
+        }
+      } catch (err) {
+        console.warn('ERPNext Sales Invoice fetch failed, using fallback mock data:', err);
+      }
+
       // 3. Fetch Customers for Tenants
       try {
-        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Customer?fields=%5B%22name%22%2C%22customer_name%22%2C%22owner%22%5D`, {
+        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Customer?fields=%5B%22name%22%2C%22customer_name%22%2C%22owner%22%2C%22email%22%2C%22phone_no%22%5D&limit_page_length=200`, {
           headers: {
             'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
             'Content-Type': 'application/json'
@@ -345,19 +388,57 @@ export default function App() {
           const list = data.data || data;
           if (Array.isArray(list) && list.length > 0) {
             setTenants(list.map((c, index) => {
-              const leaseStartYear = 2024 + (index % 2);
-              const leaseEndYear = leaseStartYear + 1;
+              // Find matching booking
+              const matchedBooking = finalBookings.find(b => b.customer === c.name);
+              
+              // Filter invoices for last paid / overall status
+              const matchedInvoices = finalInvoices.filter(inv => inv.customer === c.name || inv.customer_name === c.customer_name);
+              
+              let rentStatus = 'pending';
+              let lastPaidAmount = 0;
+              let lastPaidDate = 'N/A';
+
+              if (matchedInvoices.length > 0) {
+                // Find paid invoices, sort by posting_date descending to get the last paid one
+                const paidInvoices = matchedInvoices
+                  .filter(inv => (inv.status || '').toLowerCase() === 'paid')
+                  .sort((a, b) => new Date(b.posting_date || 0) - new Date(a.posting_date || 0));
+
+                if (paidInvoices.length > 0) {
+                  lastPaidAmount = paidInvoices[0].grand_total || 0;
+                  lastPaidDate = paidInvoices[0].posting_date || 'N/A';
+                }
+
+                // Determine rent status based on presence of unpaid invoices
+                const hasOverdue = matchedInvoices.some(inv => (inv.status || '').toLowerCase() === 'overdue');
+                const hasUnpaid = matchedInvoices.some(inv => (inv.status || '').toLowerCase() === 'unpaid' || (inv.status || '').toLowerCase() === 'pending');
+                
+                if (hasOverdue) {
+                  rentStatus = 'overdue';
+                } else if (hasUnpaid) {
+                  rentStatus = 'pending';
+                } else if (paidInvoices.length > 0) {
+                  rentStatus = 'paid';
+                }
+              }
+
               return {
                 id: c.name || `TEN-${Math.floor(800 + Math.random() * 200)}`,
-                name: c.customer_name || c.name || 'ERPNext Customer',
-                email: c.owner || 'customer@carpenterestate.org',
-                phone: `+44 7911 6${Math.floor(10000 + Math.random() * 90000)}`,
-                address: 'Stratford, London E15, United Kingdom',
-                propertyName: 'Stratford Court Apartments',
-                propertyId: 'PROP-2041',
-                leaseStart: `${leaseStartYear}-01-01`,
-                leaseEnd: `${leaseEndYear}-01-01`,
-                rentStatus: ['paid', 'pending', 'overdue'][index % 3]
+                name: c.customer_name || c.name || 'Customer',
+                email: c.email || c.owner || 'customer@carpenterestate.org',
+                phone: c.phone_no || 'Contact info not specified',
+                address: 'Loading Address...',
+                propertyName: matchedBooking ? matchedBooking.property : 'Stratford Court Apartments',
+                propertyId: matchedBooking ? matchedBooking.property : 'PROP-2041',
+                propertyGroup: matchedBooking ? matchedBooking.property : 'Stratford Court Apartments',
+                unitSpec: matchedBooking ? matchedBooking.property : 'Flat 4B',
+                tenantType: index % 2 === 0 ? 'Internal' : 'External',
+                rentAmount: matchedBooking ? matchedBooking.booking_amount : 1850,
+                lastPaidAmount: lastPaidAmount,
+                lastPaidDate: lastPaidDate,
+                leaseStart: matchedBooking ? matchedBooking.starting_date || '2025-01-01' : '2025-01-01',
+                leaseEnd: matchedBooking ? matchedBooking.ending_date || '2026-01-01' : '2026-01-01',
+                rentStatus: rentStatus
               };
             }));
           }
@@ -458,7 +539,7 @@ export default function App() {
 
       // 7. Fetch Maintenance Schedule
       try {
-        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule?fields=%5B%22name%22%2C%22customer%22%2C%22transaction_date%22%2C%22status%22%2C%22customer_name%22%2C%22company%22%5D`, {
+        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule?fields=%5B%22name%22%2C%22customer%22%2C%22transaction_date%22%2C%22status%22%2C%22customer_name%22%2C%22company%22%2C%22_assign%22%2C%22custom_property%22%5D`, {
           headers: {
             'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
             'Content-Type': 'application/json'
@@ -469,21 +550,26 @@ export default function App() {
           const list = data.data || data;
           if (Array.isArray(list) && list.length > 0) {
             const detailedSchedules = await Promise.all(list.map(async (sch) => {
-              try {
-                const detailRes = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule/${sch.name}`, {
-                  headers: {
-                    'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
-                    'Content-Type': 'application/json'
-                  }
-                });
-                if (detailRes.ok) {
-                  const detailData = await detailRes.json();
-                  return detailData.data || detailData;
-                }
-              } catch (e) {
-                console.warn(`Failed to fetch detail for schedule ${sch.name}:`, e);
-              }
-              return sch;
+               try {
+                 const detailRes = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule/${sch.name}`, {
+                   headers: {
+                     'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+                     'Content-Type': 'application/json'
+                   }
+                 });
+                 if (detailRes.ok) {
+                   const detailData = await detailRes.json();
+                   const detailedObj = detailData.data || detailData;
+                   return {
+                     ...detailedObj,
+                     _assign: sch._assign,
+                     custom_property: sch.custom_property || detailedObj.custom_property
+                   };
+                 }
+               } catch (e) {
+                 console.warn(`Failed to fetch detail for schedule ${sch.name}:`, e);
+               }
+               return sch;
             }));
             setSchedules(detailedSchedules);
           }
@@ -492,41 +578,7 @@ export default function App() {
         console.warn('ERPNext Maintenance Schedule fetch failed, using fallback mock data:', err);
       }
 
-      // 8. Fetch Sales Invoice for Billing Ledger
-      try {
-        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Sales%20Invoice?fields=%5B%22name%22%2C%22customer_name%22%2C%22posting_date%22%2C%22due_date%22%2C%22grand_total%22%2C%22status%22%5D`, {
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const list = data.data || data;
-          if (Array.isArray(list) && list.length > 0) {
-            setInvoices(list.map(inv => {
-              const statusLower = (inv.status || 'pending').toLowerCase();
-              let mappedStatus = 'pending';
-              if (statusLower === 'paid') {
-                mappedStatus = 'paid';
-              } else if (statusLower === 'overdue') {
-                mappedStatus = 'overdue';
-              }
-              return {
-                id: inv.name,
-                tenantName: inv.customer_name || 'ERPNext Tenant',
-                propertyId: 'PROP-2041',
-                amount: inv.grand_total || 2500,
-                issuedDate: inv.posting_date || '2026-06-01',
-                dueDate: inv.due_date || '2026-06-10',
-                status: mappedStatus
-              };
-            }));
-          }
-        }
-      } catch (err) {
-        console.warn('ERPNext Sales Invoice fetch failed, using fallback mock data:', err);
-      }
+
 
       // 9. Fetch Accounts
       try {
@@ -707,21 +759,118 @@ export default function App() {
   const [loginUser, setLoginUser] = useState('');
   const [loginPass, setLoginPass] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
 
-  const handleLoginSubmit = (e) => {
+  const [currentUserDetails, setCurrentUserDetails] = useState({
+    fullName: localStorage.getItem('pms_user') || 'Estate Admin',
+    designation: 'Superuser',
+    image: ''
+  });
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const loggedInUser = localStorage.getItem('pms_user');
+    if (!loggedInUser) return;
+
+    // Default values
+    setCurrentUserDetails({
+      fullName: loggedInUser,
+      designation: 'Administrator',
+      image: ''
+    });
+
+    if (ERPNEXT_CONFIG && ERPNEXT_CONFIG.url) {
+      const fetchEmployeeDetails = async () => {
+        try {
+          // Find employee record linked by user_id
+          const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Employee?filters=[["Employee","user_id","=","${loggedInUser}"]]&fields=["employee_name","designation","image"]`, {
+            headers: {
+              'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          if (res.ok) {
+            const json = await res.json();
+            const list = json.data || [];
+            if (list.length > 0) {
+              const emp = list[0];
+              setCurrentUserDetails({
+                fullName: emp.employee_name || loggedInUser,
+                designation: emp.designation || 'Staff Member',
+                image: emp.image || ''
+              });
+            } else {
+              // Try querying User doctype directly to get the full name if no Employee is linked
+              const userRes = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/User/${loggedInUser}`, {
+                headers: {
+                  'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+                  'Content-Type': 'application/json'
+                }
+              });
+              if (userRes.ok) {
+                const userJson = await userRes.json();
+                const uDoc = userJson.data || userJson;
+                setCurrentUserDetails({
+                  fullName: uDoc.full_name || loggedInUser,
+                  designation: uDoc.role_profile_name || 'System User',
+                  image: uDoc.user_image || ''
+                });
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Failed fetching logged-in user employee details:', err);
+        }
+      };
+      fetchEmployeeDetails();
+    }
+  }, [isAuthenticated]);
+
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    if (loginUser === 'admin' && loginPass === 'Pms@ADV2026!@#') {
-      setIsAuthenticated(true);
-      localStorage.setItem('pms_auth', 'true');
-      setLoginError('');
-    } else {
-      setLoginError('Invalid username or password credentials.');
+    setLoginError('');
+    setLoginLoading(true);
+
+    try {
+      const res = await fetch(`${ERPNEXT_CONFIG.url}/api/method/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          usr: loginUser,
+          pwd: loginPass
+        })
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setIsAuthenticated(true);
+        localStorage.setItem('pms_auth', 'true');
+        localStorage.setItem('pms_user', loginUser);
+        setLoginError('');
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setLoginError(errData.message || 'Invalid username or password credentials.');
+      }
+    } catch (err) {
+      if (loginUser === 'admin' && loginPass === 'Pms@ADV2026!@#') {
+        setIsAuthenticated(true);
+        localStorage.setItem('pms_auth', 'true');
+        setLoginError('');
+      } else {
+        setLoginError('Error connecting to authentication service. Please try again.');
+      }
+    } finally {
+      setLoginLoading(false);
     }
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     localStorage.removeItem('pms_auth');
+    localStorage.removeItem('pms_user');
   };
 
   // Handlers
@@ -744,52 +893,136 @@ export default function App() {
 
   const handleCreateMaintenanceSchedule = async (newSchedule) => {
     if (ERPNEXT_CONFIG) {
+      const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newSchedule)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const createdDoc = data.data || data;
+        const detailRes = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule/${createdDoc.name}`, {
+          headers: {
+            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        if (detailRes.ok) {
+          const detailData = await detailRes.json();
+          const fullDoc = detailData.data || detailData;
+          setSchedules(prev => [fullDoc, ...prev]);
+          return fullDoc;
+        }
+        setSchedules(prev => [createdDoc, ...prev]);
+        return createdDoc;
+      } else {
+        let errMsg = 'Failed to create Maintenance Schedule on ERPNext server';
+        try {
+          const errJson = await res.json();
+          if (errJson._server_messages) {
+            const msgs = JSON.parse(errJson._server_messages);
+            errMsg = msgs.map(m => {
+              try {
+                const parsed = JSON.parse(m);
+                return parsed.message || parsed;
+              } catch {
+                return String(m);
+              }
+            }).join(', ');
+          }
+        } catch {}
+        throw new Error(errMsg);
+      }
+    } else {
+      throw new Error('ERPNext API integration URL is not configured.');
+    }
+  };
+
+  const handleAssignScheduleResource = async (scheduleName, team, resource) => {
+    // Update local state
+    setSchedules(prev => prev.map(sch => {
+      if (sch.name === scheduleName) {
+        return {
+          ...sch,
+          custom_assigned_team: team,
+          custom_assigned_resource: resource
+        };
+      }
+      return sch;
+    }));
+
+    if (ERPNEXT_CONFIG && ERPNEXT_CONFIG.url && !scheduleName.startsWith('SCH-')) {
       try {
-        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule`, {
+        await fetch(`${ERPNEXT_CONFIG.url}/api/method/frappe.desk.form.assign_to.add`, {
           method: 'POST',
           headers: {
             'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(newSchedule)
+          body: JSON.stringify({
+            doctype: 'Maintenance Schedule',
+            name: scheduleName,
+            assign_to: resource,
+            description: `Assigned to ${team} department / ${resource}`
+          })
         });
-        if (res.ok) {
-          const data = await res.json();
-          const createdDoc = data.data || data;
-          const detailRes = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule/${createdDoc.name}`, {
-            headers: {
-              'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
-              'Content-Type': 'application/json'
-            }
-          });
-          if (detailRes.ok) {
-            const detailData = await detailRes.json();
-            setSchedules(prev => [...prev, detailData.data || detailData]);
-            return;
-          }
-          setSchedules(prev => [...prev, createdDoc]);
-          return;
-        }
       } catch (err) {
-        console.warn('Failed to create ERPNext Maintenance Schedule, using local fallback:', err);
+        console.warn('Failed to assign ERPNext Maintenance Schedule resource:', err);
       }
     }
-    const mockCreated = {
-      name: `SCH-2026-${Math.floor(10000 + Math.random() * 90000)}`,
-      customer: newSchedule.customer,
-      customer_name: newSchedule.customer_name || newSchedule.customer,
-      transaction_date: newSchedule.transaction_date,
-      status: 'Draft',
-      company: newSchedule.company,
-      items: newSchedule.items,
-      schedules: newSchedule.items.map((it, idx) => ({
-        name: `sch-${Math.floor(Math.random() * 100000)}`,
-        item_code: it.item_code,
-        scheduled_date: it.start_date,
-        completion_status: 'Pending'
-      }))
-    };
-    setSchedules(prev => [...prev, mockCreated]);
+  };
+
+  const handleCreateMaintenanceVisit = async (newVisit) => {
+    if (ERPNEXT_CONFIG && ERPNEXT_CONFIG.url) {
+      const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Visit`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newVisit)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const createdDoc = data.data || data;
+        const detailRes = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Visit/${createdDoc.name}`, {
+          headers: {
+            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        if (detailRes.ok) {
+          const detailData = await detailRes.json();
+          const fullDoc = detailData.data || detailData;
+          setVisits(prev => [fullDoc, ...prev]);
+          return fullDoc;
+        }
+        setVisits(prev => [createdDoc, ...prev]);
+        return createdDoc;
+      } else {
+        let errMsg = 'Failed to create Maintenance Visit on ERPNext server';
+        try {
+          const errJson = await res.json();
+          if (errJson._server_messages) {
+            const msgs = JSON.parse(errJson._server_messages);
+            errMsg = msgs.map(m => {
+              try {
+                const parsed = JSON.parse(m);
+                return parsed.message || parsed;
+              } catch {
+                return String(m);
+              }
+            }).join(', ');
+          }
+        } catch {}
+        throw new Error(errMsg);
+      }
+    } else {
+      throw new Error('ERPNext API integration URL is not configured.');
+    }
   };
 
   const handleUpdateScheduleDate = async (parentName, childRowName, nextDate) => {
@@ -941,7 +1174,7 @@ export default function App() {
     }
   };
 
-  const handleAddSupportMessage = (ticketId, message) => {
+  const handleAddSupportMessage = async (ticketId, message) => {
     setSupportTickets(supportTickets.map(t => {
       if (t.id === ticketId) {
         return {
@@ -952,6 +1185,28 @@ export default function App() {
       }
       return t;
     }));
+
+    if (ERPNEXT_CONFIG && ERPNEXT_CONFIG.url && !ticketId.startsWith('SUP-')) {
+      try {
+        await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Communication`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            communication_type: 'Comment',
+            comment_type: 'Comment',
+            reference_doctype: 'Issue',
+            reference_name: ticketId,
+            content: message.text,
+            sender: 'devteam@anantdv.com'
+          })
+        });
+      } catch (err) {
+        console.warn('Failed to update ERPNext Issue communication timeline:', err);
+      }
+    }
   };
 
   const handleCreateEmployee = async (newEmp) => {
@@ -1023,6 +1278,39 @@ export default function App() {
 
   // Render Dashboard Home Statistics overview
   const renderDashboardOverview = () => {
+    // Calculate Invoice Aging
+    let current = 0;
+    let overdue30 = 0;
+    let overdue60 = 0;
+    let overdue90 = 0;
+    let overdueMore = 0;
+    const today = new Date();
+    invoices.forEach(inv => {
+      if ((inv.status || '').toLowerCase() === 'paid') return;
+      const amount = inv.outstanding_amount || inv.amount || inv.grand_total || 0;
+      if (amount <= 0) return;
+      const dueDateStr = inv.due_date || inv.dueDate;
+      if (!dueDateStr) {
+        current += amount;
+        return;
+      }
+      const dueDate = new Date(dueDateStr);
+      const diffTime = today - dueDate;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays <= 0) {
+        current += amount;
+      } else if (diffDays <= 30) {
+        overdue30 += amount;
+      } else if (diffDays <= 60) {
+        overdue60 += amount;
+      } else if (diffDays <= 90) {
+        overdue90 += amount;
+      } else {
+        overdueMore += amount;
+      }
+    });
+    const aging = { current, overdue30, overdue60, overdue90, overdueMore };
+
     // 1. Calculate Occupancy Trends (Last 12 Months) booking records over month-wise over a period of year
     // Group booking records from `bookings` list by month
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1126,8 +1414,8 @@ export default function App() {
         {/* Header */}
         <div className="view-header" style={{ marginBottom: 0, position: 'relative', overflow: 'visible' }}>
           <div>
-            <h1 className="view-title" style={{ fontSize: '1.65rem' }}>Estate Command Dashboard</h1>
-            <p className="view-subtitle">Operations overview for Carpenters Estate properties & retail units.</p>
+            <h1 className="view-title" style={{ fontSize: '1.65rem' }}>Dashboard</h1>
+            <p className="view-subtitle">Operations overview for Carpenters Properties & retail units.</p>
           </div>
           
           {/* Calendar Widget Container */}
@@ -1311,7 +1599,7 @@ export default function App() {
           </div>
 
           <div className="stat-card" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#fff', padding: 12, borderRadius: 12, display: 'flex' }}>
+            <div style={{ background: 'linear-gradient(135deg, #34d399, #059669)', color: '#fff', padding: 12, borderRadius: 12, display: 'flex' }}>
               <Hammer size={24} />
             </div>
             <div>
@@ -1348,7 +1636,7 @@ export default function App() {
                   <div style={{ 
                     height: `${Math.max(item.pct * 1.2, 4)}px`, 
                     width: 24, 
-                    background: 'linear-gradient(180deg, #d97706 0%, #3b82f6 100%)', 
+                    background: 'linear-gradient(180deg, #10b981 0%, #059669 100%)', 
                     borderRadius: '4px 4px 0 0',
                     transition: 'all 0.3s ease'
                   }} />
@@ -1440,18 +1728,31 @@ export default function App() {
             </div>
           </div>
 
-          {/* Real-Time Analytics */}
-          <div className="card-panel" style={{ margin: 0, padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <h3 style={{ fontSize: '0.975rem', fontWeight: 600, marginBottom: 12 }}>Real-Time Analytics</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 10 }}>
-              <div style={{ background: 'var(--bg-tertiary)', padding: 16, borderRadius: 10, textAlign: 'center' }}>
-                <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#3b82f6' }}>14</div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Live Visitors</div>
-              </div>
-              <div style={{ background: 'var(--bg-tertiary)', padding: 16, borderRadius: 10, textAlign: 'center' }}>
-                <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#10b981' }}>5</div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>New Leads</div>
-              </div>
+          {/* Real-Time Analytics -> Invoice Aging */}
+          <div className="card-panel" style={{ margin: 0, padding: 20, display: 'flex', flexDirection: 'column' }}>
+            <h3 style={{ fontSize: '0.975rem', fontWeight: 600, marginBottom: 12 }}>Invoice Aging (Outstanding)</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
+              {[
+                { label: 'Current', amount: aging.current, color: '#10b981' },
+                { label: '1 - 30 Days', amount: aging.overdue30, color: '#f59e0b' },
+                { label: '31 - 60 Days', amount: aging.overdue60, color: '#ef4444' },
+                { label: '61 - 90 Days', amount: aging.overdue90, color: '#9333ea' },
+                { label: '90+ Days', amount: aging.overdueMore, color: '#475569' }
+              ].map((item, idx) => {
+                const totalOutstanding = aging.current + aging.overdue30 + aging.overdue60 + aging.overdue90 + aging.overdueMore || 1;
+                const percentage = Math.round((item.amount / totalOutstanding) * 100);
+                return (
+                  <div key={idx} style={{ fontSize: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{item.label}</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>${item.amount.toLocaleString()} ({percentage}%)</span>
+                    </div>
+                    <div style={{ width: '100%', height: 6, background: 'var(--bg-tertiary)', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ width: `${percentage}%`, height: '100%', background: item.color, borderRadius: 3 }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -1565,7 +1866,18 @@ export default function App() {
   const renderActiveView = () => {
     switch (currentTab) {
       case 'properties': 
-        return <Properties properties={properties} onAddProperty={handleAddProperty} onToggleListOnline={handleToggleListOnline} erpnextConfig={ERPNEXT_CONFIG} />;
+        return (
+          <Properties 
+            properties={properties} 
+            onAddProperty={handleAddProperty} 
+            onToggleListOnline={handleToggleListOnline} 
+            erpnextConfig={ERPNEXT_CONFIG} 
+            onScheduleMaintenance={(prop) => {
+              setPreSelectedProperty(prop);
+              setCurrentTab('maintenance');
+            }}
+          />
+        );
       case 'tenants': 
         return <Tenants tenants={tenants} properties={properties} onAddTenant={handleAddTenant} erpnextConfig={ERPNEXT_CONFIG} />;
       case 'owners': 
@@ -1580,10 +1892,16 @@ export default function App() {
             schedules={schedules} 
             visits={visits} 
             tenants={tenants}
+            properties={properties}
+            preSelectedProperty={preSelectedProperty}
+            clearPreSelectedProperty={() => setPreSelectedProperty(null)}
             onCreateSchedule={handleCreateMaintenanceSchedule} 
             onUpdateScheduleDate={handleUpdateScheduleDate} 
             onUpdateVisitStatus={handleUpdateVisitStatus} 
             erpnextConfig={ERPNEXT_CONFIG} 
+            employees={employees}
+            onAssignResource={handleAssignScheduleResource}
+            onCreateVisit={handleCreateMaintenanceVisit}
           />
         );
       case 'invoices':
@@ -1605,6 +1923,8 @@ export default function App() {
         );
       case 'bookings':
         return <Booking erpnextConfig={ERPNEXT_CONFIG} />;
+      case 'quotation':
+        return <Quotation erpnextConfig={ERPNEXT_CONFIG} properties={properties} />;
       default: 
         return renderDashboardOverview();
     }
@@ -1613,115 +1933,314 @@ export default function App() {
   if (!isAuthenticated) {
     return (
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
         fontFamily: 'var(--font-sans)',
-        padding: '20px'
+        color: '#1e293b',
+        display: 'flex',
+        flexDirection: 'column'
       }}>
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.04)',
-          backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderRadius: '16px',
-          width: '100%',
-          maxWidth: '400px',
-          padding: '40px 32px',
-          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)',
-          textAlign: 'center'
+        {/* Navigation Header */}
+        <header style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '20px 40px',
+          borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
+          background: 'rgba(255, 255, 255, 0.85)',
+          backdropFilter: 'blur(12px)',
+          position: 'sticky',
+          top: 0,
+          zIndex: 1000
         }}>
-          {/* Logo */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
-            <svg viewBox="0 0 100 100" style={{ width: 64, height: 64 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <svg viewBox="0 0 100 100" style={{ width: 44, height: 44 }}>
               <rect width="100" height="100" fill="#000000" rx="12"/>
               <circle cx="50" cy="50" r="36" fill="#FFDD00"/>
               <polygon points="50,50 86,14 100,14 100,86 86,86" fill="#000000"/>
               <line x1="24" y1="76" x2="50" y2="50" stroke="#000000" strokeWidth="5.5" strokeLinecap="round"/>
             </svg>
+            <div>
+              <h1 style={{ fontSize: '18px', fontWeight: 800, margin: 0, letterSpacing: '-0.02em', color: '#0f172a' }}>Carpenters Properties</h1>
+              <span style={{ fontSize: '11px', color: '#b59b00', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pte Limited</span>
+            </div>
+          </div>
+          <nav style={{ display: 'flex', gap: '28px', alignItems: 'center' }}>
+            <a href="#about" style={{ color: '#475569', textDecoration: 'none', fontSize: '13px', fontWeight: 500, transition: 'color 0.2s' }} onMouseEnter={(e) => e.target.style.color = '#0f172a'} onMouseLeave={(e) => e.target.style.color = '#475569'}>About Us</a>
+            <a href="#developments" style={{ color: '#475569', textDecoration: 'none', fontSize: '13px', fontWeight: 500, transition: 'color 0.2s' }} onMouseEnter={(e) => e.target.style.color = '#0f172a'} onMouseLeave={(e) => e.target.style.color = '#475569'}>Flagship Projects</a>
+            <a href="#portal" style={{
+              background: 'rgba(255, 221, 0, 0.15)',
+              color: '#9a8100',
+              padding: '8px 18px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              fontWeight: 600,
+              textDecoration: 'none',
+              border: '1px solid rgba(255, 221, 0, 0.4)',
+              transition: 'all 0.2s'
+            }} onMouseEnter={(e) => { e.target.style.background = '#FFDD00'; e.target.style.color = '#000'; }} onMouseLeave={(e) => { e.target.style.background = 'rgba(255, 221, 0, 0.15)'; e.target.style.color = '#9a8100'; }}>PMS Portal</a>
+          </nav>
+        </header>
+
+        {/* Hero split-screen section */}
+        <section id="portal" style={{
+          display: 'grid',
+          gridTemplateColumns: '1.2fr 0.8fr',
+          gap: '40px',
+          padding: '60px 40px',
+          maxWidth: '1280px',
+          margin: '0 auto',
+          alignItems: 'center',
+          flex: 1
+        }}>
+          {/* Left Column: Copy & Stats */}
+          <div style={{ textAlign: 'left' }}>
+            <span style={{
+              background: 'rgba(255, 221, 0, 0.12)',
+              color: '#8a7200',
+              padding: '6px 14px',
+              borderRadius: '20px',
+              fontSize: '11px',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              display: 'inline-block',
+              marginBottom: '20px'
+            }}>
+              Division of W.R. Carpenter (South Pacific) Group
+            </span>
+            <h2 style={{ fontSize: '3.2rem', fontWeight: 800, lineHeight: 1.15, marginBottom: '20px', letterSpacing: '-0.03em', fontFamily: 'var(--font-heading)', color: '#0f172a' }}>
+              Shaping Fiji's Future through <span style={{ borderBottom: '3px solid #FFDD00' }}>Landmark Real Estate</span>
+            </h2>
+            <p style={{ color: '#475569', fontSize: '16px', lineHeight: 1.6, marginBottom: '32px', maxWidth: '600px' }}>
+              Carpenters Properties Pte Limited is the premier property developer in Fiji. From state-of-the-art office towers and commercial shopping hubs to luxury foreshore mixed-use complexes, we construct, lease, and manage high-value real estate.
+            </p>
+
+            <div style={{ display: 'flex', gap: '30px' }}>
+              <div>
+                <div style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a' }}>10+</div>
+                <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Flagship Centers</div>
+              </div>
+              <div style={{ width: '1px', background: 'rgba(0, 0, 0, 0.1)' }}></div>
+              <div>
+                <div style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a' }}>2,500+</div>
+                <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Managed Spaces</div>
+              </div>
+              <div style={{ width: '1px', background: 'rgba(0, 0, 0, 0.1)' }}></div>
+              <div>
+                <div style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a' }}>40+ Yrs</div>
+                <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Fiji Presence</div>
+              </div>
+            </div>
           </div>
 
-          <h2 style={{ color: '#fff', fontSize: '1.5rem', marginBottom: '8px', fontWeight: 700 }}>Carpenters Estate</h2>
-          <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '32px' }}>Property Management System Portal</p>
+          {/* Right Column: Premium Portal Login Form */}
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.75)',
+            backdropFilter: 'blur(18px)',
+            border: '1px solid rgba(0, 0, 0, 0.08)',
+            borderRadius: '20px',
+            padding: '40px 32px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            textAlign: 'center',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            {/* Top decorative glow */}
+            <div style={{ position: 'absolute', top: 0, left: '25%', width: '50%', height: '2px', background: 'linear-gradient(90deg, transparent, #FFDD00, transparent)' }}></div>
 
-          <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'left' }}>
-            <div>
-              <label style={{ display: 'block', color: '#cbd5e1', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Username</label>
-              <input 
-                type="text" 
-                value={loginUser}
-                onChange={(e) => setLoginUser(e.target.value)}
-                placeholder="Enter admin username"
-                required
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  color: '#fff',
-                  fontSize: '14px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s'
-                }}
-                onFocus={(e) => e.target.style.borderColor = 'var(--brand-color)'}
-                onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'}
-              />
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+              <svg viewBox="0 0 100 100" style={{ width: 56, height: 56 }}>
+                <rect width="100" height="100" fill="#000000" rx="12"/>
+                <circle cx="50" cy="50" r="36" fill="#FFDD00"/>
+                <polygon points="50,50 86,14 100,14 100,86 86,86" fill="#000000"/>
+                <line x1="24" y1="76" x2="50" y2="50" stroke="#000000" strokeWidth="5.5" strokeLinecap="round"/>
+              </svg>
             </div>
 
-            <div>
-              <label style={{ display: 'block', color: '#cbd5e1', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Password</label>
-              <input 
-                type="password" 
-                value={loginPass}
-                onChange={(e) => setLoginPass(e.target.value)}
-                placeholder="Enter portal password"
-                required
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  color: '#fff',
-                  fontSize: '14px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s'
-                }}
-                onFocus={(e) => e.target.style.borderColor = 'var(--brand-color)'}
-                onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'}
-              />
-            </div>
+            <h3 style={{ fontSize: '20px', fontWeight: 700, margin: '0 0 6px 0', color: '#0f172a' }}>PMS Control Center</h3>
+            <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 28px 0' }}>Authenticate with your system credentials</p>
 
-            {loginError && (
-              <div style={{ color: '#ef4444', fontSize: '12px', fontWeight: 500, marginTop: '4px' }}>
-                {loginError}
+            <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px', textAlign: 'left' }}>
+              <div>
+                <label style={{ display: 'block', color: '#475569', fontSize: '11px', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email / Username</label>
+                <input 
+                  type="text" 
+                  value={loginUser}
+                  onChange={(e) => setLoginUser(e.target.value)}
+                  placeholder="name@domain.com"
+                  required
+                  disabled={loginLoading}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    fontSize: '14px',
+                    outline: 'none',
+                    transition: 'all 0.2s'
+                  }}
+                  onFocus={(e) => { e.target.style.borderColor = '#b59b00'; e.target.style.boxShadow = '0 0 0 2px rgba(255, 221, 0, 0.25)'; }}
+                  onBlur={(e) => { e.target.style.borderColor = '#cbd5e1'; e.target.style.boxShadow = 'none'; }}
+                />
               </div>
-            )}
 
-            <button 
-              type="submit"
-              style={{
-                width: '100%',
-                padding: '12px',
-                borderRadius: '8px',
-                border: 'none',
-                background: 'var(--brand-color)',
-                color: '#fff',
-                fontWeight: 600,
-                fontSize: '14px',
-                cursor: 'pointer',
-                marginTop: '12px',
-                transition: 'background 0.2s'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--brand-hover)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'var(--brand-color)'}
-            >
-              Sign In to Command Center
-            </button>
-          </form>
-        </div>
+              <div>
+                <label style={{ display: 'block', color: '#475569', fontSize: '11px', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Password</label>
+                <input 
+                  type="password" 
+                  value={loginPass}
+                  onChange={(e) => setLoginPass(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  disabled={loginLoading}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    fontSize: '14px',
+                    outline: 'none',
+                    transition: 'all 0.2s'
+                  }}
+                  onFocus={(e) => { e.target.style.borderColor = '#b59b00'; e.target.style.boxShadow = '0 0 0 2px rgba(255, 221, 0, 0.25)'; }}
+                  onBlur={(e) => { e.target.style.borderColor = '#cbd5e1'; e.target.style.boxShadow = 'none'; }}
+                />
+              </div>
+
+              {loginError && (
+                <div style={{ color: '#ef4444', fontSize: '12px', fontWeight: 500, background: 'rgba(239, 68, 68, 0.08)', padding: '10px', borderRadius: '6px', marginTop: '6px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                  {loginError}
+                </div>
+              )}
+
+              <button 
+                type="submit"
+                disabled={loginLoading}
+                style={{
+                  width: '100%',
+                  padding: '13px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'linear-gradient(90deg, #FFDD00, #ffc400)',
+                  color: '#000000',
+                  fontWeight: 700,
+                  fontSize: '14px',
+                  cursor: loginLoading ? 'not-allowed' : 'pointer',
+                  marginTop: '10px',
+                  transition: 'transform 0.1s, opacity 0.2s',
+                  boxShadow: '0 4px 12px rgba(255, 221, 0, 0.25)'
+                }}
+                onMouseEnter={(e) => { if(!loginLoading) e.currentTarget.style.opacity = '0.9'; }}
+                onMouseLeave={(e) => { if(!loginLoading) e.currentTarget.style.opacity = '1'; }}
+              >
+                {loginLoading ? 'Authenticating...' : 'Sign In'}
+              </button>
+            </form>
+          </div>
+        </section>
+
+        {/* Flagship Developments Section */}
+        <section id="developments" style={{
+          background: 'rgba(255, 255, 255, 0.4)',
+          borderTop: '1px solid rgba(0, 0, 0, 0.06)',
+          padding: '80px 40px'
+        }}>
+          <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
+            <div style={{ textAlign: 'center', marginBottom: '50px' }}>
+              <h3 style={{ fontSize: '11px', color: '#9a8100', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', margin: '0 0 10px 0' }}>Our Portfolio</h3>
+              <h2 style={{ fontSize: '2rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em', color: '#0f172a' }}>Flagship Property Developments</h2>
+              <p style={{ color: '#475569', fontSize: '14px', marginTop: '8px' }}>Pioneering premium retail and corporate workspaces across key locations in Fiji.</p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '30px' }}>
+              {/* MHCC Card */}
+              <div style={{
+                background: '#ffffff',
+                border: '1px solid rgba(0, 0, 0, 0.06)',
+                borderRadius: '16px',
+                padding: '28px',
+                textAlign: 'left',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.01)',
+                transition: 'all 0.3s ease'
+              }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.borderColor = 'rgba(255, 221, 0, 0.6)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.06)'; e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.01)'; }}>
+                <div style={{ display: 'inline-flex', padding: '12px', background: 'rgba(255, 221, 0, 0.15)', borderRadius: '12px', color: '#9a8100', marginBottom: '22px' }}>
+                  🏢
+                </div>
+                <h4 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 10px 0', color: '#0f172a' }}>MHCC Shopping Centre</h4>
+                <p style={{ color: '#475569', fontSize: '13px', lineHeight: 1.5, margin: 0 }}>
+                  Morris Hedstrom City Centre (MHCC) is Suva’s premier retail landmark, housing multiple levels of high-street shopping, restaurants, and entertainment.
+                </p>
+                <div style={{ borderTop: '1px solid rgba(0,0,0,0.06)', marginTop: '20px', paddingTop: '14px', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748b' }}>
+                  <span>Location: Suva, Fiji</span>
+                  <span>Type: Retail/Mall</span>
+                </div>
+              </div>
+
+              {/* Carpenters Tower Card */}
+              <div style={{
+                background: '#ffffff',
+                border: '1px solid rgba(0, 0, 0, 0.06)',
+                borderRadius: '16px',
+                padding: '28px',
+                textAlign: 'left',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.01)',
+                transition: 'all 0.3s ease'
+              }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.borderColor = 'rgba(255, 221, 0, 0.6)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.06)'; e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.01)'; }}>
+                <div style={{ display: 'inline-flex', padding: '12px', background: 'rgba(255, 221, 0, 0.15)', borderRadius: '12px', color: '#9a8100', marginBottom: '22px' }}>
+                  🏢
+                </div>
+                <h4 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 10px 0', color: '#0f172a' }}>Carpenters Tower</h4>
+                <p style={{ color: '#475569', fontSize: '13px', lineHeight: 1.5, margin: 0 }}>
+                  A state-of-the-art multi-story commercial high-rise building providing premium corporate offices and workspace facilities for industry leaders.
+                </p>
+                <div style={{ borderTop: '1px solid rgba(0,0,0,0.06)', marginTop: '20px', paddingTop: '14px', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748b' }}>
+                  <span>Location: Suva, Fiji</span>
+                  <span>Type: Commercial</span>
+                </div>
+              </div>
+
+              {/* Suva Foreshore Development */}
+              <div style={{
+                background: '#ffffff',
+                border: '1px solid rgba(0, 0, 0, 0.06)',
+                borderRadius: '16px',
+                padding: '28px',
+                textAlign: 'left',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.01)',
+                transition: 'all 0.3s ease'
+              }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.borderColor = 'rgba(255, 221, 0, 0.6)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.06)'; e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.01)'; }}>
+                <div style={{ display: 'inline-flex', padding: '12px', background: 'rgba(255, 221, 0, 0.15)', borderRadius: '12px', color: '#9a8100', marginBottom: '22px' }}>
+                  🏖️
+                </div>
+                <h4 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 10px 0', color: '#0f172a' }}>Suva Foreshore Mixed-Use</h4>
+                <p style={{ color: '#475569', fontSize: '13px', lineHeight: 1.5, margin: 0 }}>
+                  An ambitious waterfront expansion hosting luxury hospitality assets (Hilton Suva & Garden Inn), high-end marina dining, and luxury residential suites.
+                </p>
+                <div style={{ borderTop: '1px solid rgba(0,0,0,0.06)', marginTop: '20px', paddingTop: '14px', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748b' }}>
+                  <span>Location: Waterfront</span>
+                  <span>Type: Mixed-Use</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer style={{
+          borderTop: '1px solid rgba(0, 0, 0, 0.08)',
+          background: 'rgba(255, 255, 255, 0.9)',
+          padding: '30px 40px',
+          textAlign: 'center',
+          fontSize: '12px',
+          color: '#64748b'
+        }}>
+          <p style={{ margin: 0 }}>© {new Date().getFullYear()} Carpenters Properties Pte Limited. All Rights Reserved. A Member of Carpenters Group.</p>
+        </footer>
       </div>
     );
   }
@@ -1740,7 +2259,7 @@ export default function App() {
           </svg>
           <div>
             <h2 className="sidebar-brand-name">Carpenters</h2>
-            <span className="sidebar-brand-sub">ESTATE PMS</span>
+            <span className="sidebar-brand-sub" style={{ textTransform: 'none' }}>Properties Pte Ltd</span>
           </div>
         </div>
 
@@ -1749,6 +2268,10 @@ export default function App() {
             <LayoutDashboard size={18} />
             <span>Overview</span>
           </li>
+
+          <div className="sidebar-category-header">
+            <span>🏠 Property Operations</span>
+          </div>
           <li className={`menu-item ${currentTab === 'properties' ? 'active' : ''}`} onClick={() => setCurrentTab('properties')}>
             <Building size={18} />
             <span>Properties</span>
@@ -1756,34 +2279,6 @@ export default function App() {
           <li className={`menu-item ${currentTab === 'bookings' ? 'active' : ''}`} onClick={() => setCurrentTab('bookings')}>
             <Bookmark size={18} />
             <span>Property Bookings</span>
-          </li>
-          <li className={`menu-item ${currentTab === 'owners' ? 'active' : ''}`} onClick={() => setCurrentTab('owners')}>
-            <Award size={18} />
-            <span>Owners</span>
-          </li>
-          <li className={`menu-item ${currentTab === 'tenants' ? 'active' : ''}`} onClick={() => setCurrentTab('tenants')}>
-            <Users size={18} />
-            <span>Tenants</span>
-          </li>
-          <li className={`menu-item ${currentTab === 'maintenance' ? 'active' : ''}`} onClick={() => setCurrentTab('maintenance')}>
-            <Hammer size={18} />
-            <span>Maintenance</span>
-          </li>
-          <li className={`menu-item ${currentTab === 'support' ? 'active' : ''}`} onClick={() => setCurrentTab('support')}>
-            <HelpCircle size={18} />
-            <span>Helpdesk Support</span>
-          </li>
-          <li className={`menu-item ${currentTab === 'hrms' ? 'active' : ''}`} onClick={() => setCurrentTab('hrms')}>
-            <Briefcase size={18} />
-            <span>Human Resource</span>
-          </li>
-          <li className={`menu-item ${currentTab === 'invoices' ? 'active' : ''}`} onClick={() => setCurrentTab('invoices')}>
-            <Receipt size={18} />
-            <span>Billing Ledger</span>
-          </li>
-          <li className={`menu-item ${currentTab === 'reports' ? 'active' : ''}`} onClick={() => setCurrentTab('reports')}>
-            <FileText size={18} />
-            <span>Reports</span>
           </li>
           <li className={`menu-item ${currentTab === 'listings' ? 'active' : ''}`} onClick={() => setCurrentTab('listings')}>
             <Globe size={18} />
@@ -1793,14 +2288,76 @@ export default function App() {
             <Map size={18} />
             <span>3D Mall Tracker</span>
           </li>
+
+          <div className="sidebar-category-header">
+            <span>👥 PEOPLE</span>
+          </div>
+          <li className={`menu-item ${currentTab === 'owners' ? 'active' : ''}`} onClick={() => setCurrentTab('owners')}>
+            <Award size={18} />
+            <span>Owners</span>
+          </li>
+          <li className={`menu-item ${currentTab === 'tenants' ? 'active' : ''}`} onClick={() => setCurrentTab('tenants')}>
+            <Users size={18} />
+            <span>Tenants</span>
+          </li>
+
+          <div className="sidebar-category-header">
+            <span>💰 Sales & Finance</span>
+          </div>
+          <li className={`menu-item ${currentTab === 'quotation' ? 'active' : ''}`} onClick={() => setCurrentTab('quotation')}>
+            <FileSignature size={18} />
+            <span>Quotations</span>
+          </li>
+          <li className={`menu-item ${currentTab === 'invoices' ? 'active' : ''}`} onClick={() => setCurrentTab('invoices')}>
+            <Receipt size={18} />
+            <span>Billing Ledger</span>
+          </li>
+
+          <div className="sidebar-category-header">
+            <span>🔧 Service Management</span>
+          </div>
+          <li className={`menu-item ${currentTab === 'maintenance' ? 'active' : ''}`} onClick={() => setCurrentTab('maintenance')}>
+            <Hammer size={18} />
+            <span>Maintenance</span>
+          </li>
+          <li className={`menu-item ${currentTab === 'support' ? 'active' : ''}`} onClick={() => setCurrentTab('support')}>
+            <HelpCircle size={18} />
+            <span>Helpdesk Support</span>
+          </li>
+
+          <div className="sidebar-category-header">
+            <span>📊 Analytics</span>
+          </div>
+          <li className={`menu-item ${currentTab === 'reports' ? 'active' : ''}`} onClick={() => setCurrentTab('reports')}>
+            <FileText size={18} />
+            <span>Reports</span>
+          </li>
+
+          <div className="sidebar-category-header">
+            <span>⚙️ Administration</span>
+          </div>
+          <li className={`menu-item ${currentTab === 'hrms' ? 'active' : ''}`} onClick={() => setCurrentTab('hrms')}>
+            <Briefcase size={18} />
+            <span>Human Resource</span>
+          </li>
         </ul>
 
         <div className="sidebar-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div className="user-avatar">AD</div>
+            <div className="user-avatar" style={{ padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {currentUserDetails.image ? (
+                <img 
+                  src={currentUserDetails.image.startsWith('http') ? currentUserDetails.image : `${ERPNEXT_CONFIG.url}${currentUserDetails.image}`} 
+                  alt="Profile" 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                />
+              ) : (
+                currentUserDetails.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+              )}
+            </div>
             <div className="user-info">
-              <span className="user-name">Estate Admin</span>
-              <span className="user-role">Superuser</span>
+              <span className="user-name">{currentUserDetails.fullName}</span>
+              <span className="user-role">{currentUserDetails.designation}</span>
             </div>
           </div>
           <button 

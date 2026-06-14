@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DollarSign, Printer, ArrowDownRight, ArrowUpRight, Plus, X, FileText, CheckCircle2, Calculator, Landmark } from 'lucide-react';
 
 const numberToWords = (num) => {
@@ -27,10 +27,170 @@ const numberToWords = (num) => {
   return convert(num) + ' Dollars Only';
 };
 
-export default function Invoices({ invoices, accounts = [], glEntries = [], onAddInvoice, onRecordPayment }) {
+export default function Invoices({ invoices, accounts = [], glEntries = [], onAddInvoice, onRecordPayment, erpnextConfig }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showGLModal, setShowGLModal] = useState(false); // General Ledger & Trial Balance modal
   const [selectedInvoice, setSelectedInvoice] = useState(invoices[0] || null); // Default select first invoice
+  const [showTerms, setShowTerms] = useState(false);
+  const [companyDetails, setCompanyDetails] = useState({
+    name: 'CARPENTERS PROPERTIES PTE LTD',
+    address: '123 Cecil Street, #08-01, Singapore 069537',
+    phone: '+65 6123 4567',
+    email: 'info@carpentersproperties.com',
+    website: 'www.carpentersproperties.com',
+    currency: 'SGD'
+  });
+  const [invoiceDetailsExtra, setInvoiceDetailsExtra] = useState(null);
+  const [loadingExtra, setLoadingExtra] = useState(false);
+  
+  // Form states
+  const [tenantName, setTenantName] = useState('');
+  const [amount, setAmount] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [propertyId, setPropertyId] = useState('');
+  const [activeReceipt, setActiveReceipt] = useState(null);
+
+  // Fetch Company details from ERPNext
+  useEffect(() => {
+    if (!erpnextConfig || !erpnextConfig.url) return;
+    const fetchCompany = async () => {
+      try {
+        const res = await fetch(`${erpnextConfig.url}/api/resource/Company/CARPENTERS PROPERTIES PTE LIMITED`, {
+          headers: {
+            'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const doc = json.data || json;
+          setCompanyDetails(prev => ({
+            ...prev,
+            name: doc.name || prev.name,
+            currency: doc.default_currency || prev.currency,
+          }));
+
+          // Try fetching linked Address
+          const addrRes = await fetch(`${erpnextConfig.url}/api/resource/Address?filters=[["Dynamic Link", "link_doctype", "=", "Company"], ["Dynamic Link", "link_name", "=", "${doc.name}"]]&fields=["address_line1","address_line2","city","state","country","pincode","phone","email_id"]`, {
+            headers: {
+              'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          if (addrRes.ok) {
+            const addrJson = await addrRes.json();
+            const addrList = addrJson.data || [];
+            if (addrList.length > 0) {
+              const addr = addrList[0];
+              const addrParts = [addr.address_line1, addr.address_line2, addr.city, addr.state, addr.country, addr.pincode].filter(Boolean);
+              setCompanyDetails(prev => ({
+                ...prev,
+                address: addrParts.join(', ') || prev.address,
+                phone: addr.phone || prev.phone,
+                email: addr.email_id || prev.email
+              }));
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed fetching company details:', err);
+      }
+    };
+    fetchCompany();
+  }, [erpnextConfig]);
+
+  // Fetch Sales Invoice detail & Unit details & Customer details dynamically
+  useEffect(() => {
+    const targetInvoice = activeReceipt || selectedInvoice;
+    if (!targetInvoice || !erpnextConfig || !erpnextConfig.url) {
+      setInvoiceDetailsExtra(null);
+      return;
+    }
+    
+    let isMounted = true;
+    const fetchExtra = async () => {
+      setLoadingExtra(true);
+      try {
+        const res = await fetch(`${erpnextConfig.url}/api/resource/Sales%20Invoice/${targetInvoice.id}`, {
+          headers: {
+            'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        if (res.ok && isMounted) {
+          const json = await res.json();
+          const doc = json.data || json;
+          const itemCode = (doc.items && doc.items.length > 0) ? doc.items[0].item_code : null;
+          
+          let unitAddressStr = '10 Anson Road, #15-02, International Plaza, Singapore 079903';
+          let unitNameStr = targetInvoice.propertyId || 'Unit-N/A';
+          let customerAddressStr = '10 Anson Road, #15-02, International Plaza, Singapore 079903';
+
+          // 1. Fetch Customer address
+          const customerId = doc.customer || targetInvoice.tenantName;
+          if (customerId) {
+            try {
+              const custRes = await fetch(`${erpnextConfig.url}/api/resource/Address?filters=[["Dynamic Link", "link_doctype", "=", "Customer"], ["Dynamic Link", "link_name", "=", "${customerId}"]]&fields=["address_line1","address_line2","city","state","country","pincode"]`, {
+                headers: {
+                  'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+                  'Content-Type': 'application/json'
+                }
+              });
+              if (custRes.ok) {
+                const custData = await custRes.json();
+                const custAddrs = custData.data || [];
+                if (custAddrs.length > 0) {
+                  const addr = custAddrs[0];
+                  customerAddressStr = [addr.address_line1, addr.address_line2, addr.city, addr.state, addr.country, addr.pincode].filter(Boolean).join(', ');
+                }
+              }
+            } catch (err) {
+              console.warn('Failed fetching customer address:', err);
+            }
+          }
+
+          // 2. Fetch Unit details from unit doctype
+          if (itemCode) {
+            try {
+              const uRes = await fetch(`${erpnextConfig.url}/api/method/erpnext.api.get_unit?item_code=${encodeURIComponent(itemCode)}`, {
+                headers: {
+                  'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+                  'Content-Type': 'application/json'
+                }
+              });
+              if (uRes.ok) {
+                const uData = await uRes.json();
+                const uDoc = uData.message || uData;
+                unitNameStr = uDoc.item_name || itemCode;
+                const addrParts = [uDoc.custom_locality, uDoc.custom_district, uDoc.custom_country].filter(Boolean);
+                unitAddressStr = addrParts.join(', ') || unitAddressStr;
+              }
+            } catch (err) {
+              console.warn('Failed fetching unit spec address:', err);
+            }
+          }
+
+          if (isMounted) {
+            setInvoiceDetailsExtra({
+              unitName: unitNameStr,
+              unitAddress: unitAddressStr,
+              customerAddress: customerAddressStr,
+              currency: doc.currency || 'SGD',
+              billingItems: doc.items || []
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Failed fetching invoice extra details:', err);
+      } finally {
+        if (isMounted) setLoadingExtra(false);
+      }
+    };
+    fetchExtra();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedInvoice, activeReceipt, erpnextConfig]);
 
   // Pagination states & calculations
   const [currentPage, setCurrentPage] = useState(1);
@@ -83,14 +243,6 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
     );
   };
 
-  // Form states
-  const [tenantName, setTenantName] = useState('');
-  const [amount, setAmount] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [propertyId, setPropertyId] = useState('');
-
-  const [activeReceipt, setActiveReceipt] = useState(null);
-
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!tenantName || !amount || !dueDate || !propertyId) return;
@@ -129,7 +281,7 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
       <div className="view-header">
         <div>
           <h1 className="view-title">Billing Ledger & Invoicing</h1>
-          <p className="view-subtitle">Generate rent invoices, record payments, and view accounting double-entries.</p>
+          <p className="view-subtitle">Generate rent invoices and record payments.</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn btn-secondary" onClick={() => setShowGLModal(true)}>
@@ -171,7 +323,7 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
                 <tr>
                   <th>Invoice ID</th>
                   <th>Tenant</th>
-                  <th>Space</th>
+                  <th>Unit Name</th>
                   <th>Amount</th>
                   <th>Status</th>
                 </tr>
@@ -189,7 +341,11 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
                   >
                     <td style={{ fontWeight: 600, color: 'var(--brand-color)' }}>{inv.id}</td>
                     <td style={{ fontWeight: 600 }}>{inv.tenantName}</td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{inv.propertyId}</td>
+                    <td style={{ color: 'var(--text-secondary)' }}>
+                      {selectedInvoice?.id === inv.id && invoiceDetailsExtra?.unitName 
+                        ? invoiceDetailsExtra.unitName 
+                        : (inv.propertyId || 'Unit-N/A')}
+                    </td>
                     <td style={{ fontWeight: 600 }}>${inv.amount.toLocaleString()}</td>
                     <td>
                       <span className={`badge ${inv.status === 'paid' ? 'badge-success' : 'badge-warning'}`}>
@@ -215,25 +371,26 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
             >
               ×
             </button>
-
             {/* TOP HEADER SECTION */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #e5e7eb', paddingBottom: 14 }}>
-              {/* Top Left: Owner Details */}
-              <div style={{ fontSize: 11, color: '#4b5563', lineHeight: 1.4 }}>
-                <h4 style={{ color: '#111827', fontWeight: 800, fontSize: 12, textTransform: 'uppercase', marginBottom: 4 }}>Carpenters Trust Group</h4>
-                <p>Carpenters Estate Management Office</p>
-                <p>Stratford, London E15</p>
-                <p>Email: trust@carpenterestate.org</p>
-                <p>Tel: +44 20 7123 4567</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e5e7eb', paddingBottom: 14 }}>
+              {/* Top Left: Logo & Owner Details */}
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <img src="/logo.svg" style={{ width: 42, height: 42, borderRadius: 6, display: 'inline-block' }} alt="Logo" />
+                <div style={{ fontSize: 10, color: '#4b5563', lineHeight: 1.3 }}>
+                  <h4 style={{ color: '#111827', fontWeight: 800, fontSize: 13, marginBottom: 4, letterSpacing: '0.02em' }}>{companyDetails.name}</h4>
+                  <p>{companyDetails.address}</p>
+                  <p>Tel: {companyDetails.phone || '+65 6123 4567'}</p>
+                  <p>Email: {companyDetails.email || 'info@carpentersproperties.com'}</p>
+                  <p>{companyDetails.website}</p>
+                </div>
               </div>
               
               {/* Top Right: Invoice Details */}
               <div style={{ textAlign: 'right', fontSize: 11, color: '#4b5563', lineHeight: 1.4 }}>
-                <h3 style={{ color: '#ffdd00', fontWeight: 800, fontSize: 16, textShadow: '0px 0px 1px #000', margin: 0 }}>INVOICE</h3>
-                <p style={{ fontWeight: 700, color: '#111827' }}>REF: {selectedInvoice.id}</p>
-                <p>Date: {selectedInvoice.issuedDate}</p>
-                <p>Due Date: {selectedInvoice.dueDate}</p>
-                <p style={{ marginTop: 4 }}>
+                <h3 style={{ color: '#111827', fontWeight: 800, fontSize: 16, margin: '0 0 6px 0', letterSpacing: '0.03em' }}>TAX INVOICE</h3>
+                <p><span style={{ color: '#6b7280' }}>Invoice Number</span> &nbsp;&nbsp; {selectedInvoice.id}</p>
+                <p><span style={{ color: '#6b7280' }}>Date</span> &nbsp;&nbsp; {selectedInvoice.issuedDate}</p>
+                <p style={{ marginTop: 6 }}>
                   <span style={{ 
                     padding: '2px 8px', 
                     borderRadius: 10, 
@@ -248,71 +405,111 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
               </div>
             </div>
 
-            {/* BILL TO */}
-            <div style={{ fontSize: 11 }}>
-              <span style={{ color: '#9ca3af', textTransform: 'uppercase', display: 'block', fontWeight: 700, fontSize: 9 }}>Billed To (Tenant):</span>
-              <strong style={{ fontSize: 13, color: '#111827' }}>{selectedInvoice.tenantName}</strong>
-              <p style={{ color: '#4b5563' }}>Leased Space reference: <strong>{selectedInvoice.propertyId}</strong></p>
+            {/* BILL TO & PROPERTY ADDRESS */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, fontSize: 10, paddingBottom: 10 }}>
+              <div>
+                <span style={{ color: '#6b7280', textTransform: 'uppercase', display: 'block', fontWeight: 700, fontSize: 9, marginBottom: 4 }}>BILL TO</span>
+                <strong style={{ fontSize: 11, color: '#111827', display: 'block' }}>Tenant Name</strong>
+                <span style={{ display: 'block', color: '#111827', fontWeight: 600, marginBottom: 4 }}>{selectedInvoice.tenantName}</span>
+                <p style={{ color: '#4b5563', lineHeight: 1.3 }}>{invoiceDetailsExtra?.customerAddress || '10 Anson Road, #15-02, International Plaza, Singapore 079903'}</p>
+              </div>
+              <div>
+                <span style={{ color: '#6b7280', textTransform: 'uppercase', display: 'block', fontWeight: 700, fontSize: 9, marginBottom: 4 }}>PROPERTY ADDRESS</span>
+                <strong style={{ fontSize: 11, color: '#111827', display: 'block', marginBottom: 2 }}>{invoiceDetailsExtra?.unitName || selectedInvoice.propertyId}</strong>
+                <p style={{ color: '#4b5563', lineHeight: 1.3 }}>{invoiceDetailsExtra?.unitAddress || '10 Anson Road, #15-02, International Plaza, Singapore 079903'}</p>
+              </div>
             </div>
 
             {/* MIDDLE: LINE ITEMS TABLE */}
             <div style={{ border: '1px solid #e5e7eb', borderRadius: 4, overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                    <th style={{ padding: '8px 10px', color: '#374151' }}>Item Description</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'right', color: '#374151' }}>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '8px 10px', color: '#4b5563' }}>Base Rental Charge (85% share)</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>${Math.round(selectedInvoice.amount * 0.85).toLocaleString()}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '8px 10px', color: '#4b5563' }}>Common Area Maintenance fee (10% CAM)</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>${Math.round(selectedInvoice.amount * 0.1).toLocaleString()}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                    <td style={{ padding: '8px 10px', color: '#4b5563' }}>Utility & Grid Surcharges (5%)</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>${Math.round(selectedInvoice.amount * 0.05).toLocaleString()}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
-                    <td style={{ padding: '8px 10px', color: '#374151', fontWeight: 600 }}>Subtotal:</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#374151' }}>${selectedInvoice.amount.toLocaleString()}.00</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                    <td style={{ padding: '8px 10px', color: '#4b5563', fontWeight: 600 }}>12.5% VAT Surcharge:</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, color: '#dc2626' }}>${Math.round(selectedInvoice.amount * 0.125).toLocaleString()}.00</td>
-                  </tr>
-                  <tr style={{ background: '#ffdd00' }}>
-                    <td style={{ padding: '8px 10px', fontWeight: 800, color: '#000000' }}>Grand Total (incl. VAT):</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 900, color: '#000000', fontSize: 12 }}>${Math.round(selectedInvoice.amount * 1.125).toLocaleString()}.00</td>
-                  </tr>
-                </tbody>
-              </table>
+              {(() => {
+                const getBillingPeriod = (dateStr) => {
+                  if (!dateStr) return '01 Jun 2024 - 30 Jun 2024';
+                  const d = new Date(dateStr);
+                  if (isNaN(d.getTime())) return '01 Jun 2024 - 30 Jun 2024';
+                  const year = d.getFullYear();
+                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                  const month = monthNames[d.getMonth()];
+                  const lastDay = new Date(year, d.getMonth() + 1, 0).getDate();
+                  return `01 ${month} ${year} - ${lastDay} ${month} ${year}`;
+                };
+                const activeCurrency = invoiceDetailsExtra?.currency || companyDetails.currency || 'SGD';
+                const baseRent = Math.round(selectedInvoice.amount * 0.8);
+                const serviceCharge = Math.round(selectedInvoice.amount * 0.12);
+                const propertyTax = Math.round(selectedInvoice.amount * 0.08);
+                const gstVal = Math.round(selectedInvoice.amount * 0.09);
+                const periodStr = getBillingPeriod(selectedInvoice.issuedDate);
+
+                return (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ background: '#1f2937', color: '#ffffff', borderBottom: '1px solid #374151' }}>
+                        <th style={{ padding: '8px 10px', color: '#ffffff' }}>Description</th>
+                        <th style={{ padding: '8px 10px', color: '#ffffff' }}>Period</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'right', color: '#ffffff' }}>Amount ({activeCurrency})</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
+                        <td style={{ padding: '8px 10px', color: '#111827', fontWeight: 500 }}>Rent</td>
+                        <td style={{ padding: '8px 10px', color: '#4b5563' }}>{periodStr}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{baseRent.toLocaleString()}.00</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
+                        <td style={{ padding: '8px 10px', color: '#111827', fontWeight: 500 }}>Service Charge</td>
+                        <td style={{ padding: '8px 10px', color: '#4b5563' }}>{periodStr}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{serviceCharge.toLocaleString()}.00</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td style={{ padding: '8px 10px', color: '#111827', fontWeight: 500 }}>Property Tax</td>
+                        <td style={{ padding: '8px 10px', color: '#4b5563' }}>{periodStr}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{propertyTax.toLocaleString()}.00</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
+                        <td colSpan="2" style={{ padding: '8px 10px', color: '#374151', fontWeight: 600, textAlign: 'right' }}>Subtotal</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#374151' }}>{selectedInvoice.amount.toLocaleString()}.00</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td colSpan="2" style={{ padding: '8px 10px', color: '#4b5563', fontWeight: 600, textAlign: 'right' }}>GST (9%)</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{gstVal.toLocaleString()}.00</td>
+                      </tr>
+                      <tr style={{ background: '#f3f4f6', borderTop: '2px solid #e5e7eb' }}>
+                        <td colSpan="2" style={{ padding: '8px 10px', fontWeight: 800, color: '#111827', textAlign: 'right' }}>Total Amount Due ({activeCurrency})</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#111827', fontSize: 11 }}>{(selectedInvoice.amount + gstVal).toLocaleString()}.00</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                );
+              })()}
             </div>
 
             {/* AMOUNT IN WORDS */}
-            <div style={{ background: '#f3f4f6', padding: '10px 12px', borderRadius: 4, fontSize: 10, color: '#374151', borderLeft: '3px solid #ffdd00' }}>
+            <div style={{ background: '#f9fafb', padding: '10px 12px', borderRadius: 4, fontSize: 10, color: '#374151', borderLeft: '3px solid #1f2937' }}>
               <span style={{ fontWeight: 700, textTransform: 'uppercase', display: 'block', fontSize: 8, color: '#6b7280', marginBottom: 2 }}>Amount in Words:</span>
-              <strong>{numberToWords(Math.round(selectedInvoice.amount * 1.125))}</strong>
+              <strong>{numberToWords(Math.round(selectedInvoice.amount * 1.09))}</strong>
             </div>
 
             {/* BOTTOM SECTION: BANK & TERMS & QR */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 1fr', gap: 14, borderTop: '2px solid #e5e7eb', paddingTop: 14, fontSize: 9, color: '#4b5563', lineHeight: 1.4 }}>
-              {/* Bank Details */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20, borderTop: '1px solid #e5e7eb', paddingTop: 14, fontSize: 9, color: '#4b5563', lineHeight: 1.4 }}>
+              {/* Payment Info & Bank Details */}
               <div>
-                <strong style={{ color: '#111827', textTransform: 'uppercase', display: 'block', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}><Landmark size={11} /> Bank Remittance</strong>
-                <p>Bank: <strong>Bank of Baroda Suva</strong></p>
-                <p>A/C Name: <strong>Carpenters Trust Est.</strong></p>
-                <p>A/C Number: <strong>98120200004567</strong></p>
-                <p>IFSC / BSB: <strong>BARB0DTSUVA</strong></p>
+                <strong style={{ color: '#111827', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>PAYMENT INFORMATION</strong>
+                <p style={{ marginBottom: 6 }}>Please make payment by {selectedInvoice.dueDate} to the following account:</p>
+                <p><span style={{ color: '#6b7280' }}>Bank Name:</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <strong>DBS Bank Ltd</strong></p>
+                <p><span style={{ color: '#6b7280' }}>Account Name:</span> &nbsp;&nbsp; <strong>{companyDetails.name}</strong></p>
+                <p><span style={{ color: '#6b7280' }}>Account Number:</span> <strong>123-456789-0</strong></p>
+                <p><span style={{ color: '#6b7280' }}>Swift Code:</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <strong>DBSSGSGXXX</strong></p>
+                
+                <p style={{ marginTop: 12, fontStyle: 'italic', fontSize: 8, color: '#6b7280' }}>
+                  Thank you for your business.<br />
+                  This is a computer-generated invoice. No signature is required.
+                </p>
               </div>
               
-              {/* QR Code SVG */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <svg viewBox="0 0 100 100" style={{ width: 52, height: 52 }}>
+              {/* Scan to Pay QR */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid #e5e7eb', paddingLeft: 20 }}>
+                <span style={{ fontSize: 9, color: '#111827', marginBottom: 6, textTransform: 'uppercase', fontWeight: 700 }}>SCAN TO PAY</span>
+                <svg viewBox="0 0 100 100" style={{ width: 64, height: 64 }}>
                   <rect width="100" height="100" fill="#ffffff" />
                   <rect x="5" y="5" width="25" height="25" fill="#000000" />
                   <rect x="8" y="8" width="19" height="19" fill="#ffffff" />
@@ -334,27 +531,28 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
                   <rect x="65" y="40" width="15" height="10" fill="#000000" />
                   <rect x="45" y="65" width="10" height="5" fill="#000000" />
                   <rect x="60" y="60" width="20" height="5" fill="#000000" />
-                  <rect x="50" y="70" width="5" height="15" fill="#000000" />
                   <rect x="80" y="70" width="10" height="15" fill="#000000" />
                 </svg>
-                <span style={{ fontSize: 6, color: '#6b7280', marginTop: 2, textTransform: 'uppercase', fontWeight: 600 }}>Scan & Pay</span>
-              </div>
-
-              {/* Terms and Conditions */}
-              <div>
-                <strong style={{ color: '#111827', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Terms & Conditions</strong>
-                <p>1. Settle within 10 days of issue.</p>
-                <p>2. Overdue interest at 1.5%.</p>
-                <p>3. Subject to Carpenters Mall rules.</p>
               </div>
             </div>
 
+            {/* Terms and Conditions Collapsible */}
+            {showTerms && (
+              <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 'var(--radius-md)', padding: 12, fontSize: 9, color: '#4b5563', animation: 'slideDown 0.2s ease-out' }}>
+                <strong style={{ color: '#111827', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Terms & Conditions</strong>
+                <p>1. Settle all invoice amounts within 10 days of the date of issue.</p>
+                <p>2. Overdue payments will be charged interest at a rate of 1.5% per month.</p>
+                <p>3. Payments are subject to standard Singapore Carpenters commercial tenant policies.</p>
+                <p>4. Billing disputes must be raised in writing within 5 business days of receipt.</p>
+              </div>
+            )}
+
             {/* Action buttons */}
-            <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 14, display: 'flex', gap: 10 }}>
+            <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               {selectedInvoice.status === 'pending' && (
                 <button 
                   className="btn btn-primary" 
-                  style={{ width: '100%', fontSize: 11, gap: 6, background: '#ffdd00', color: '#000' }}
+                  style={{ flex: 1, minWidth: 140, fontSize: 11, gap: 6, background: '#ffdd00', color: '#000' }}
                   onClick={() => {
                     onRecordPayment(selectedInvoice.id);
                     setSelectedInvoice({ ...selectedInvoice, status: 'paid' });
@@ -365,10 +563,17 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
               )}
               <button 
                 className="btn btn-secondary" 
-                style={{ width: '100%', fontSize: 11, gap: 6, borderColor: '#d1d5db', color: '#374151', background: '#f9fafb' }}
+                style={{ flex: 1, minWidth: 100, fontSize: 11, gap: 6, borderColor: '#d1d5db', color: '#374151', background: '#f9fafb' }}
                 onClick={() => handlePrint(selectedInvoice)}
               >
                 <Printer size={13} /> Print Official PDF
+              </button>
+              <button 
+                className="btn btn-secondary" 
+                style={{ flex: 1, minWidth: 120, fontSize: 11, gap: 6, borderColor: '#d1d5db', color: '#374151', background: '#f9fafb' }}
+                onClick={() => setShowTerms(!showTerms)}
+              >
+                Terms & Conditions
               </button>
             </div>
           </div>
@@ -542,37 +747,26 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: 650, padding: 30, background: '#ffffff', color: '#111827', borderRadius: 'var(--radius-lg)' }}>
             
-            {/* Header branding */}
-            <div style={{ textAlign: 'center', borderBottom: '2px dashed #e5e7eb', paddingBottom: 16, marginBottom: 16 }}>
-              <div style={{ width: 42, height: 42, background: '#000', borderRadius: 6, margin: '0 auto 8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg viewBox="0 0 100 100" style={{ width: 32, height: 32 }}>
-                  <circle cx="50" cy="50" r="36" fill="#FFDD00"/>
-                  <polygon points="50,50 86,14 100,14 100,86 86,86" fill="#000000"/>
-                  <line x1="24" y1="76" x2="50" y2="50" stroke="#000000" strokeWidth="5.5" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <h2 style={{ color: '#111827', fontSize: '1.2rem', fontWeight: 800 }}>CARPENTERS ESTATE</h2>
-              <span style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Official Tax Invoice</span>
-            </div>
-
             {/* TOP HEADER SECTION */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e5e7eb', paddingBottom: 12, marginBottom: 14 }}>
-              {/* Top Left: Owner Details */}
-              <div style={{ fontSize: 10, color: '#4b5563', lineHeight: 1.4 }}>
-                <h4 style={{ color: '#111827', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', marginBottom: 2 }}>Carpenters Trust Group</h4>
-                <p>Carpenters Estate Management Office</p>
-                <p>Stratford, London E15</p>
-                <p>Email: trust@carpenterestate.org</p>
-                <p>Tel: +44 20 7123 4567</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e5e7eb', paddingBottom: 14, marginBottom: 16 }}>
+              {/* Top Left: Logo & Owner Details */}
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <img src="/logo.svg" style={{ width: 42, height: 42, borderRadius: 6, display: 'inline-block' }} alt="Logo" />
+                <div style={{ fontSize: 10, color: '#4b5563', lineHeight: 1.3 }}>
+                  <h4 style={{ color: '#111827', fontWeight: 800, fontSize: 14, marginBottom: 4, letterSpacing: '0.02em' }}>{companyDetails.name}</h4>
+                  <p>{companyDetails.address}</p>
+                  <p>Tel: {companyDetails.phone || '+65 6123 4567'}</p>
+                  <p>Email: {companyDetails.email || 'info@carpentersproperties.com'}</p>
+                  <p>{companyDetails.website}</p>
+                </div>
               </div>
               
               {/* Top Right: Invoice Details */}
-              <div style={{ textAlign: 'right', fontSize: 10, color: '#4b5563', lineHeight: 1.4 }}>
-                <h3 style={{ color: '#92400e', fontWeight: 800, fontSize: 14, margin: 0 }}>INVOICE RECORD</h3>
-                <p style={{ fontWeight: 700, color: '#111827' }}>REF: {activeReceipt.id}</p>
-                <p>Date: {activeReceipt.issuedDate}</p>
-                <p>Due Date: {activeReceipt.dueDate}</p>
-                <p style={{ marginTop: 2 }}>
+              <div style={{ textAlign: 'right', fontSize: 11, color: '#4b5563', lineHeight: 1.4 }}>
+                <h3 style={{ color: '#111827', fontWeight: 800, fontSize: 18, margin: '0 0 8px 0', letterSpacing: '0.03em' }}>TAX INVOICE</h3>
+                <p><span style={{ color: '#6b7280' }}>Invoice Number</span> &nbsp;&nbsp; {activeReceipt.id}</p>
+                <p><span style={{ color: '#6b7280' }}>Date</span> &nbsp;&nbsp; {activeReceipt.issuedDate}</p>
+                <p style={{ marginTop: 6 }}>
                   <span style={{ 
                     padding: '2px 8px', 
                     borderRadius: 10, 
@@ -587,71 +781,111 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
               </div>
             </div>
 
-            {/* BILL TO */}
-            <div style={{ fontSize: 10, marginBottom: 14 }}>
-              <span style={{ color: '#9ca3af', textTransform: 'uppercase', display: 'block', fontWeight: 700, fontSize: 8 }}>Billed To (Tenant):</span>
-              <strong style={{ fontSize: 12, color: '#111827' }}>{activeReceipt.tenantName}</strong>
-              <p style={{ color: '#4b5563' }}>Leased Space reference: <strong>{activeReceipt.propertyId}</strong></p>
+            {/* BILL TO & PROPERTY ADDRESS */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, fontSize: 10, paddingBottom: 14, marginBottom: 14 }}>
+              <div>
+                <span style={{ color: '#6b7280', textTransform: 'uppercase', display: 'block', fontWeight: 700, fontSize: 9, marginBottom: 4 }}>BILL TO</span>
+                <strong style={{ fontSize: 11, color: '#111827', display: 'block' }}>Tenant Name</strong>
+                <span style={{ display: 'block', color: '#111827', fontWeight: 600, marginBottom: 4 }}>{activeReceipt.tenantName}</span>
+                <p style={{ color: '#4b5563', lineHeight: 1.3 }}>{invoiceDetailsExtra?.customerAddress || '10 Anson Road, #15-02, International Plaza, Singapore 079903'}</p>
+              </div>
+              <div>
+                <span style={{ color: '#6b7280', textTransform: 'uppercase', display: 'block', fontWeight: 700, fontSize: 9, marginBottom: 4 }}>PROPERTY ADDRESS</span>
+                <strong style={{ fontSize: 11, color: '#111827', display: 'block', marginBottom: 2 }}>{invoiceDetailsExtra?.unitName || activeReceipt.propertyId}</strong>
+                <p style={{ color: '#4b5563', lineHeight: 1.3 }}>{invoiceDetailsExtra?.unitAddress || '10 Anson Road, #15-02, International Plaza, Singapore 079903'}</p>
+              </div>
             </div>
 
             {/* MIDDLE: LINE ITEMS TABLE */}
-            <div style={{ border: '1px solid #e5e7eb', borderRadius: 4, overflow: 'hidden', marginBottom: 14 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                    <th style={{ padding: '6px 8px', color: '#374151' }}>Item Description</th>
-                    <th style={{ padding: '6px 8px', textAlign: 'right', color: '#374151' }}>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '6px 8px', color: '#4b5563' }}>Base Rental Charge (85% share)</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>${Math.round(activeReceipt.amount * 0.85).toLocaleString()}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '6px 8px', color: '#4b5563' }}>Common Area Maintenance fee (10% CAM)</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>${Math.round(activeReceipt.amount * 0.1).toLocaleString()}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                    <td style={{ padding: '6px 8px', color: '#4b5563' }}>Utility & Grid Surcharges (5%)</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>${Math.round(activeReceipt.amount * 0.05).toLocaleString()}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
-                    <td style={{ padding: '6px 8px', color: '#374151', fontWeight: 600 }}>Subtotal:</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#374151' }}>${activeReceipt.amount.toLocaleString()}.00</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                    <td style={{ padding: '6px 8px', color: '#4b5563', fontWeight: 600 }}>12.5% VAT Surcharge:</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: '#dc2626' }}>${Math.round(activeReceipt.amount * 0.125).toLocaleString()}.00</td>
-                  </tr>
-                  <tr style={{ background: '#ffdd00' }}>
-                    <td style={{ padding: '6px 8px', fontWeight: 800, color: '#000000' }}>Grand Total (incl. VAT):</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 900, color: '#000000', fontSize: 11 }}>${Math.round(activeReceipt.amount * 1.125).toLocaleString()}.00</td>
-                  </tr>
-                </tbody>
-              </table>
+            <div style={{ border: '1px solid #e5e7eb', borderRadius: 4, overflow: 'hidden', marginBottom: 16 }}>
+              {(() => {
+                const getBillingPeriod = (dateStr) => {
+                  if (!dateStr) return '01 Jun 2024 - 30 Jun 2024';
+                  const d = new Date(dateStr);
+                  if (isNaN(d.getTime())) return '01 Jun 2024 - 30 Jun 2024';
+                  const year = d.getFullYear();
+                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                  const month = monthNames[d.getMonth()];
+                  const lastDay = new Date(year, d.getMonth() + 1, 0).getDate();
+                  return `01 ${month} ${year} - ${lastDay} ${month} ${year}`;
+                };
+                const activeCurrency = invoiceDetailsExtra?.currency || companyDetails.currency || 'SGD';
+                const baseRent = Math.round(activeReceipt.amount * 0.8);
+                const serviceCharge = Math.round(activeReceipt.amount * 0.12);
+                const propertyTax = Math.round(activeReceipt.amount * 0.08);
+                const gstVal = Math.round(activeReceipt.amount * 0.09);
+                const periodStr = getBillingPeriod(activeReceipt.issuedDate);
+
+                return (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ background: '#1f2937', color: '#ffffff', borderBottom: '1px solid #374151' }}>
+                        <th style={{ padding: '8px 10px', color: '#ffffff' }}>Description</th>
+                        <th style={{ padding: '8px 10px', color: '#ffffff' }}>Period</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'right', color: '#ffffff' }}>Amount ({activeCurrency})</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
+                        <td style={{ padding: '8px 10px', color: '#111827', fontWeight: 500 }}>Rent</td>
+                        <td style={{ padding: '8px 10px', color: '#4b5563' }}>{periodStr}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{baseRent.toLocaleString()}.00</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
+                        <td style={{ padding: '8px 10px', color: '#111827', fontWeight: 500 }}>Service Charge</td>
+                        <td style={{ padding: '8px 10px', color: '#4b5563' }}>{periodStr}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{serviceCharge.toLocaleString()}.00</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td style={{ padding: '8px 10px', color: '#111827', fontWeight: 500 }}>Property Tax</td>
+                        <td style={{ padding: '8px 10px', color: '#4b5563' }}>{periodStr}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{propertyTax.toLocaleString()}.00</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
+                        <td colSpan="2" style={{ padding: '8px 10px', color: '#374151', fontWeight: 600, textAlign: 'right' }}>Subtotal</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#374151' }}>{activeReceipt.amount.toLocaleString()}.00</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td colSpan="2" style={{ padding: '8px 10px', color: '#4b5563', fontWeight: 600, textAlign: 'right' }}>GST (9%)</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{gstVal.toLocaleString()}.00</td>
+                      </tr>
+                      <tr style={{ background: '#f3f4f6', borderTop: '2px solid #e5e7eb' }}>
+                        <td colSpan="2" style={{ padding: '8px 10px', fontWeight: 800, color: '#111827', textAlign: 'right' }}>Total Amount Due ({activeCurrency})</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#111827', fontSize: 11 }}>{(activeReceipt.amount + gstVal).toLocaleString()}.00</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                );
+              })()}
             </div>
 
             {/* AMOUNT IN WORDS */}
-            <div style={{ background: '#f3f4f6', padding: '8px 10px', borderRadius: 4, fontSize: 9, color: '#374151', borderLeft: '3px solid #ffdd00', marginBottom: 14 }}>
-              <span style={{ fontWeight: 700, textTransform: 'uppercase', display: 'block', fontSize: 7, color: '#6b7280', marginBottom: 1 }}>Amount in Words:</span>
-              <strong>{numberToWords(Math.round(activeReceipt.amount * 1.125))}</strong>
+            <div style={{ background: '#f9fafb', padding: '10px 12px', borderRadius: 4, fontSize: 10, color: '#374151', borderLeft: '3px solid #1f2937', marginBottom: 16 }}>
+              <span style={{ fontWeight: 700, textTransform: 'uppercase', display: 'block', fontSize: 8, color: '#6b7280', marginBottom: 2 }}>Amount in Words:</span>
+              <strong>{numberToWords(Math.round(activeReceipt.amount * 1.09))}</strong>
             </div>
 
             {/* BOTTOM SECTION: BANK & TERMS & QR */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 1fr', gap: 12, borderTop: '1px solid #e5e7eb', paddingTop: 12, fontSize: 8, color: '#4b5563', lineHeight: 1.4, marginBottom: 16 }}>
-              {/* Bank Details */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20, borderTop: '1px solid #e5e7eb', paddingTop: 14, fontSize: 9, color: '#4b5563', lineHeight: 1.4, marginBottom: 20 }}>
+              {/* Payment Info & Bank Details */}
               <div>
-                <strong style={{ color: '#111827', textTransform: 'uppercase', display: 'block', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}><Landmark size={10} /> Bank Remittance</strong>
-                <p>Bank: <strong>Bank of Baroda Suva</strong></p>
-                <p>A/C Name: <strong>Carpenters Trust Est.</strong></p>
-                <p>A/C Number: <strong>98120200004567</strong></p>
-                <p>IFSC / BSB: <strong>BARB0DTSUVA</strong></p>
+                <strong style={{ color: '#111827', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>PAYMENT INFORMATION</strong>
+                <p style={{ marginBottom: 6 }}>Please make payment by {activeReceipt.dueDate} to the following account:</p>
+                <p><span style={{ color: '#6b7280' }}>Bank Name:</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <strong>DBS Bank Ltd</strong></p>
+                <p><span style={{ color: '#6b7280' }}>Account Name:</span> &nbsp;&nbsp; <strong>{companyDetails.name}</strong></p>
+                <p><span style={{ color: '#6b7280' }}>Account Number:</span> <strong>123-456789-0</strong></p>
+                <p><span style={{ color: '#6b7280' }}>Swift Code:</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <strong>DBSSGSGXXX</strong></p>
+                
+                <p style={{ marginTop: 12, fontStyle: 'italic', fontSize: 8, color: '#6b7280' }}>
+                  Thank you for your business.<br />
+                  This is a computer-generated invoice. No signature is required.
+                </p>
               </div>
-
-              {/* QR Code SVG */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <svg viewBox="0 0 100 100" style={{ width: 48, height: 48 }}>
+              
+              {/* Scan to Pay QR */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid #e5e7eb', paddingLeft: 20 }}>
+                <span style={{ fontSize: 9, color: '#111827', marginBottom: 6, textTransform: 'uppercase', fontWeight: 700 }}>SCAN TO PAY</span>
+                <svg viewBox="0 0 100 100" style={{ width: 64, height: 64 }}>
                   <rect width="100" height="100" fill="#ffffff" />
                   <rect x="5" y="5" width="25" height="25" fill="#000000" />
                   <rect x="8" y="8" width="19" height="19" fill="#ffffff" />
@@ -673,18 +907,8 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
                   <rect x="65" y="40" width="15" height="10" fill="#000000" />
                   <rect x="45" y="65" width="10" height="5" fill="#000000" />
                   <rect x="60" y="60" width="20" height="5" fill="#000000" />
-                  <rect x="50" y="70" width="5" height="15" fill="#000000" />
                   <rect x="80" y="70" width="10" height="15" fill="#000000" />
                 </svg>
-                <span style={{ fontSize: 5, color: '#6b7280', marginTop: 1, textTransform: 'uppercase', fontWeight: 600 }}>Scan & Pay</span>
-              </div>
-
-              {/* Terms and Conditions */}
-              <div>
-                <strong style={{ color: '#111827', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Terms & Conditions</strong>
-                <p>1. Settle within 10 days of issue.</p>
-                <p>2. Overdue interest at 1.5%.</p>
-                <p>3. Subject to Carpenters Mall rules.</p>
               </div>
             </div>
 

@@ -1,7 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Hammer, User, Clock, CheckCircle, AlertTriangle, Plus, X, Calendar as CalendarIcon, List, BarChart3, ClipboardList, Building } from 'lucide-react';
 
-export default function Maintenance({ schedules = [], visits = [], tenants = [], onCreateSchedule, onUpdateScheduleDate, onUpdateVisitStatus, erpnextConfig }) {
+export default function Maintenance({ 
+  schedules = [], 
+  visits = [], 
+  tenants = [], 
+  properties = [], 
+  preSelectedProperty = null, 
+  clearPreSelectedProperty, 
+  onCreateSchedule, 
+  onUpdateScheduleDate, 
+  onUpdateVisitStatus, 
+  erpnextConfig,
+  employees = [],
+  onAssignResource,
+  onCreateVisit
+}) {
   const [showModal, setShowModal] = useState(false);
   const [activeSection, setActiveSection] = useState('schedule'); // 'schedule' or 'visit'
   const [viewMode, setViewMode] = useState('calendar'); // 'calendar' or 'list' for schedule section
@@ -23,11 +37,32 @@ export default function Maintenance({ schedules = [], visits = [], tenants = [],
 
   // Modal Form States
   const [customer, setCustomer] = useState('');
+  const [selectedPropertyId, setSelectedPropertyId] = useState('');
   const [company, setCompany] = useState('CARPENTERS PROPERTIES PTE LIMITED');
   const [transactionDate, setTransactionDate] = useState('2026-06-11');
+  const [scheduleTime, setScheduleTime] = useState('10:00 AM');
+  const [assigning, setAssigning] = useState(false);
+  const [tempTeam, setTempTeam] = useState('');
+  const [tempResource, setTempResource] = useState('');
+  const [submittingSchedule, setSubmittingSchedule] = useState(false);
+  const [scheduleStatusMessage, setScheduleStatusMessage] = useState(null);
+  const [creatingVisit, setCreatingVisit] = useState(false);
+  const [visitStatusMessage, setVisitStatusMessage] = useState(null);
   const [formItems, setFormItems] = useState([
     { item_code: '31AD', start_date: '2026-06-11', end_date: '2026-07-11', periodicity: 'Weekly', description: '' }
   ]);
+
+  useEffect(() => {
+    if (preSelectedProperty) {
+      setSelectedPropertyId(preSelectedProperty.id);
+      const tenantForProp = tenants.find(t => t.propertyId === preSelectedProperty.id);
+      if (tenantForProp) {
+        setCustomer(tenantForProp.id);
+      }
+      setShowModal(true);
+      clearPreSelectedProperty();
+    }
+  }, [preSelectedProperty, tenants, clearPreSelectedProperty]);
 
   // Extract individual schedule items for the calendar view
   const calendarTasks = [];
@@ -176,27 +211,44 @@ export default function Maintenance({ schedules = [], visits = [], tenants = [],
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!customer) return;
 
     const tenantObj = tenants.find(t => t.id === customer);
     const customerName = tenantObj ? tenantObj.name : customer;
+    const matchedProp = properties.find(p => p.id === selectedPropertyId);
 
     const payload = {
       customer,
       customer_name: customerName,
       transaction_date: transactionDate,
+      transaction_time: scheduleTime,
       company,
+      custom_property: selectedPropertyId,
+      propertyId: selectedPropertyId,
+      propertyName: matchedProp ? matchedProp.name : '',
       items: formItems
     };
 
-    onCreateSchedule(payload);
-    setShowModal(false);
-    
-    // Reset Form
-    setCustomer('');
-    setFormItems([{ item_code: '31AD', start_date: '2026-06-11', end_date: '2026-07-11', periodicity: 'Weekly', description: '' }]);
+    setSubmittingSchedule(true);
+    setScheduleStatusMessage(null);
+    try {
+      await onCreateSchedule(payload);
+      setScheduleStatusMessage({ type: 'success', text: 'Maintenance Schedule created & synced with ERPNext!' });
+      setTimeout(() => {
+        setShowModal(false);
+        setScheduleStatusMessage(null);
+        // Reset Form
+        setCustomer('');
+        setSelectedPropertyId('');
+        setFormItems([{ item_code: '31AD', start_date: '2026-06-11', end_date: '2026-07-11', periodicity: 'Weekly', description: '' }]);
+      }, 1500);
+    } catch (err) {
+      setScheduleStatusMessage({ type: 'error', text: err.message || 'Failed to sync with ERPNext' });
+    } finally {
+      setSubmittingSchedule(false);
+    }
   };
 
   return (
@@ -205,7 +257,7 @@ export default function Maintenance({ schedules = [], visits = [], tenants = [],
       <div className="view-header" style={{ marginBottom: 20 }}>
         <div>
           <h1 className="view-title">Maintenance & Facility Operations</h1>
-          <p className="view-subtitle">Roster preventative maintenance visits, manage visit logs, and inspect child tables.</p>
+          <p className="view-subtitle">Roster preventative maintenance visits and manage visit logs.</p>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           {/* Main Tab toggles */}
@@ -286,7 +338,7 @@ export default function Maintenance({ schedules = [], visits = [], tenants = [],
                         <tr>
                           <th>Schedule ID</th>
                           <th>Customer Name</th>
-                          <th>Transaction Date</th>
+                          <th>Schedule Date</th>
                           <th>Items Count</th>
                           <th>Status</th>
                         </tr>
@@ -303,7 +355,7 @@ export default function Maintenance({ schedules = [], visits = [], tenants = [],
                           >
                             <td style={{ fontWeight: 600, color: 'var(--brand-color)' }}>{sch.name}</td>
                             <td>{sch.customer_name || sch.customer}</td>
-                            <td>{sch.transaction_date}</td>
+                            <td>{sch.transaction_date} {sch.transaction_time || '10:00 AM'}</td>
                             <td>{sch.items?.length || 0} items</td>
                             <td>
                               <span className={`badge ${sch.status === 'Submitted' ? 'badge-success' : 'badge-warning'}`}>
@@ -445,11 +497,170 @@ export default function Maintenance({ schedules = [], visits = [], tenants = [],
                 <div>
                   <h3 style={{ fontSize: '1rem', color: '#ffffff', marginBottom: 4 }}>{selectedSchedule.customer_name || selectedSchedule.customer}</h3>
                   <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Company: {selectedSchedule.company}</span>
+                  {(selectedSchedule.propertyName || selectedSchedule.propertyId || selectedSchedule.custom_property) && (
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
+                      Property: <strong>{(() => {
+                        const propObj = properties.find(p => p.id === selectedSchedule.custom_property || p.id === selectedSchedule.propertyId);
+                        return propObj ? `${propObj.name} (${propObj.id})` : (selectedSchedule.propertyName || selectedSchedule.custom_property || selectedSchedule.propertyId);
+                      })()}</strong>
+                    </div>
+                  )}
                 </div>
 
                 <div>
-                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 2 }}>Doc status / Date</span>
-                  <strong style={{ fontSize: 12 }}>{selectedSchedule.transaction_date} ({selectedSchedule.status || 'Draft'})</strong>
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 2 }}>Doc status / Schedule Date & Time</span>
+                  <strong style={{ fontSize: 12 }}>{selectedSchedule.transaction_date} {selectedSchedule.transaction_time || '10:00 AM'} ({selectedSchedule.status || 'Draft'})</strong>
+                </div>
+
+                {/* Team & Resource Assignment */}
+                <div style={{ background: 'var(--bg-tertiary)', padding: 12, borderRadius: 6, border: '1px solid var(--border-color)' }}>
+                  <h4 style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 8 }}>Assignment & Resources</h4>
+                  {(() => {
+                    const assignedList = selectedSchedule._assign ? (typeof selectedSchedule._assign === 'string' ? JSON.parse(selectedSchedule._assign) : selectedSchedule._assign) : [];
+                    const team = selectedSchedule.custom_assigned_team || '';
+                    const resource = selectedSchedule.custom_assigned_resource || '';
+                    return (
+                      <div>
+                        {assignedList.length > 0 || team || resource ? (
+                          <div style={{ fontSize: 11, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {team && <div><strong>Team/Dept</strong>: {team}</div>}
+                            {resource && <div><strong>Assigned Person</strong>: {resource}</div>}
+                            {assignedList.length > 0 && <div><strong>Assigned Emails</strong>: {assignedList.join(', ')}</div>}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>No team or resources assigned.</div>
+                        )}
+                        
+                        {assigning ? (
+                          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid var(--border-color)', paddingTop: 10 }}>
+                            <div>
+                              <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Select Team/Department</label>
+                              <select 
+                                value={tempTeam} 
+                                onChange={(e) => setTempTeam(e.target.value)} 
+                                className="form-select"
+                                style={{ fontSize: 11, padding: 4 }}
+                              >
+                                <option value="">-- Select Team --</option>
+                                {['Operations', 'Human Resources', 'Technology', 'Finance', 'Executive'].map(dept => (
+                                  <option key={dept} value={dept}>{dept}</option>
+                                ))}
+                              </select>
+                            </div>
+                            
+                            <div>
+                              <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Select Resource</label>
+                              <select 
+                                value={tempResource} 
+                                onChange={(e) => setTempResource(e.target.value)} 
+                                className="form-select"
+                                style={{ fontSize: 11, padding: 4 }}
+                              >
+                                <option value="">-- Select Resource --</option>
+                                {employees.filter(emp => !tempTeam || emp.department === tempTeam).map(emp => (
+                                  <option key={emp.name || emp.email} value={emp.email || emp.name}>{emp.employee_name || emp.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            
+                            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                              <button 
+                                type="button"
+                                className="btn btn-primary btn-sm"
+                                style={{ fontSize: 10, padding: '3px 8px', flex: 1 }}
+                                onClick={() => {
+                                  onAssignResource(selectedSchedule.name, tempTeam, tempResource);
+                                  setAssigning(false);
+                                }}
+                              >
+                                Save Assignment
+                              </button>
+                              <button 
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                style={{ fontSize: 10, padding: '3px 8px' }}
+                                onClick={() => setAssigning(false)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ marginTop: 10 }}>
+                            <button 
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              style={{ fontSize: 10, padding: '4px 8px' }}
+                              onClick={() => {
+                                setTempTeam(team);
+                                setTempResource(resource);
+                                setAssigning(true);
+                              }}
+                            >
+                              {team || resource || assignedList.length > 0 ? "Reassign" : "Assign Team & Resource"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Create Visit from Schedule Option */}
+                <div style={{ background: 'var(--bg-tertiary)', padding: 12, borderRadius: 6, border: '1px solid var(--border-color)', marginTop: 12 }}>
+                  {visitStatusMessage && (
+                    <div style={{
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      marginBottom: 8,
+                      fontSize: 10,
+                      background: visitStatusMessage.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                      border: `1px solid ${visitStatusMessage.type === 'success' ? 'var(--color-success)' : 'var(--color-danger)'}`,
+                      color: visitStatusMessage.type === 'success' ? 'var(--color-success)' : 'var(--color-danger)'
+                    }}>
+                      {visitStatusMessage.text}
+                    </div>
+                  )}
+                  <button 
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={creatingVisit}
+                    style={{ width: '100%', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                    onClick={async () => {
+                      const visitDate = prompt("Enter Visit Date (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
+                      const visitTime = prompt("Enter Visit Time (HH:MM:SS):", "10:00:00");
+                      if (visitDate && visitTime) {
+                        const visitPayload = {
+                          customer: selectedSchedule.customer,
+                          customer_name: selectedSchedule.customer_name || selectedSchedule.customer,
+                          mntc_date: visitDate,
+                          mntc_time: visitTime,
+                          completion_status: 'Pending',
+                          maintenance_type: 'Preventive',
+                          company: selectedSchedule.company || 'CARPENTERS PROPERTIES PTE LIMITED',
+                          purposes: (selectedSchedule.schedules || []).map(row => ({
+                            item_code: row.item_code,
+                            item_name: row.item_code,
+                            description: `Maintenance from schedule ${selectedSchedule.name}`,
+                            work_done: 'Pending'
+                          }))
+                        };
+                        setCreatingVisit(true);
+                        setVisitStatusMessage(null);
+                        try {
+                          await onCreateVisit(visitPayload);
+                          setVisitStatusMessage({ type: 'success', text: 'Visit created & synced successfully!' });
+                          setTimeout(() => setVisitStatusMessage(null), 3000);
+                        } catch (err) {
+                          setVisitStatusMessage({ type: 'error', text: err.message || 'Failed to sync visit.' });
+                        } finally {
+                          setCreatingVisit(false);
+                        }
+                      }
+                    }}
+                  >
+                    {creatingVisit ? 'Creating & Syncing...' : '+ Create Maintenance Visit'}
+                  </button>
                 </div>
 
                 {/* Schedule details table */}
@@ -543,6 +754,41 @@ export default function Maintenance({ schedules = [], visits = [], tenants = [],
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Type: <strong>{selectedVisit.maintenance_type}</strong></span>
               </div>
 
+              {/* Property Details */}
+              {(() => {
+                const tenantObj = tenants.find(t => t.id === selectedVisit.customer || t.name === selectedVisit.customer_name || t.name === selectedVisit.customer);
+                const propObj = tenantObj ? properties.find(p => p.id === tenantObj.propertyId || p.name === tenantObj.propertyName) : null;
+                return (
+                  <div style={{ background: 'var(--bg-tertiary)', padding: 12, borderRadius: 6, border: '1px solid var(--border-color)' }}>
+                    <h4 style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Property Reference</h4>
+                    {propObj ? (
+                      <div style={{ fontSize: 12 }}>
+                        <div><strong>Name</strong>: {propObj.name}</div>
+                        <div style={{ marginTop: 2 }}><strong>Address</strong>: {propObj.address}</div>
+                        <div style={{ marginTop: 2 }}><strong>Type</strong>: <span style={{ textTransform: 'capitalize' }}>{propObj.type}</span></div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>No property reference found for customer.</div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Assigned To Details */}
+              <div style={{ background: 'var(--bg-tertiary)', padding: 12, borderRadius: 6, border: '1px solid var(--border-color)' }}>
+                <h4 style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Assigned Staff</h4>
+                {(() => {
+                  const assignedList = selectedVisit._assign ? (typeof selectedVisit._assign === 'string' ? JSON.parse(selectedVisit._assign) : selectedVisit._assign) : [];
+                  const servicePerson = selectedVisit.purposes && selectedVisit.purposes.length > 0 ? selectedVisit.purposes[0].service_person : 'Unassigned';
+                  return (
+                    <div style={{ fontSize: 12 }}>
+                      <div><strong>Service Person</strong>: {servicePerson}</div>
+                      {assignedList.length > 0 && <div style={{ marginTop: 2 }}><strong>Assigned Users</strong>: {assignedList.join(', ')}</div>}
+                    </div>
+                  );
+                })()}
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <div style={{ background: 'rgba(255,255,255,0.01)', padding: 12, borderRadius: 6, border: '1px solid var(--border-color)' }}>
                   <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: 10, textTransform: 'uppercase', marginBottom: 2 }}>Completion Status</span>
@@ -611,7 +857,39 @@ export default function Maintenance({ schedules = [], visits = [], tenants = [],
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
+                {scheduleStatusMessage && (
+                  <div style={{
+                    padding: '10px 14px',
+                    borderRadius: 6,
+                    marginBottom: 14,
+                    fontSize: 12,
+                    background: scheduleStatusMessage.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                    border: `1px solid ${scheduleStatusMessage.type === 'success' ? 'var(--color-success)' : 'var(--color-danger)'}`,
+                    color: scheduleStatusMessage.type === 'success' ? 'var(--color-success)' : 'var(--color-danger)'
+                  }}>
+                    {scheduleStatusMessage.text}
+                  </div>
+                )}
+                <div className="grid-3col" style={{ gap: 16, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+                  <div className="form-group">
+                    <label className="form-label">Property Group</label>
+                    <select 
+                      value={selectedPropertyId} 
+                      onChange={(e) => {
+                        setSelectedPropertyId(e.target.value);
+                        const linkedTenant = tenants.find(t => t.propertyId === e.target.value);
+                        if (linkedTenant) {
+                          setCustomer(linkedTenant.id);
+                        }
+                      }} 
+                      className="form-select"
+                    >
+                      <option value="">-- Select Property --</option>
+                      {properties.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div className="form-group">
                     <label className="form-label">Customer (Tenant)</label>
                     <select 
@@ -638,15 +916,28 @@ export default function Maintenance({ schedules = [], visits = [], tenants = [],
                   </div>
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">Transaction Date</label>
-                  <input 
-                    type="date" 
-                    value={transactionDate} 
-                    onChange={(e) => setTransactionDate(e.target.value)} 
-                    className="form-input" 
-                    required 
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div className="form-group">
+                    <label className="form-label">Schedule Date</label>
+                    <input 
+                      type="date" 
+                      value={transactionDate} 
+                      onChange={(e) => setTransactionDate(e.target.value)} 
+                      className="form-input" 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Schedule Time</label>
+                    <input 
+                      type="text" 
+                      value={scheduleTime} 
+                      onChange={(e) => setScheduleTime(e.target.value)} 
+                      placeholder="e.g. 10:00 AM"
+                      className="form-input" 
+                      required 
+                    />
+                  </div>
                 </div>
 
                 {/* Child Table: Items */}
@@ -760,8 +1051,10 @@ export default function Maintenance({ schedules = [], visits = [], tenants = [],
               </div>
 
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Submit</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)} disabled={submittingSchedule}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={submittingSchedule}>
+                  {submittingSchedule ? 'Syncing with ERPNext...' : 'Submit'}
+                </button>
               </div>
             </form>
           </div>
