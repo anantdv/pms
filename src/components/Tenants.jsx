@@ -20,8 +20,8 @@ export default function Tenants({ tenants, properties, onAddTenant, erpnextConfi
     if (erpnextConfig && erpnextConfig.url) {
       setLoadingAddress(true);
       fetch(`${erpnextConfig.url}/api/resource/Address?filters=[["Dynamic Link", "link_doctype", "=", "Customer"], ["Dynamic Link", "link_name", "=", "${selectedTenant.id}"]]&fields=["address_line1","address_line2","city","state","country","pincode"]`, {
-        headers: {
-          'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+        credentials: 'include',
+      headers: {
           'Content-Type': 'application/json'
         }
       })

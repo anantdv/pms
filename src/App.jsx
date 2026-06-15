@@ -189,8 +189,8 @@ export default function App() {
       // 1. Fetch Property Groups
       try {
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/method/erpnext.api.get_property_groups`, {
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -257,8 +257,8 @@ export default function App() {
         console.warn('ERPNext API get_property_groups fetch failed, trying standard resource:', err);
         try {
           const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Property%20Group?fields=["name","land_and_building_type","locality","district","country","land_description","lease_start_date","lease_end_date","no_of_floors","image"]&limit_page_length=200`, {
-            headers: {
-              'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+            credentials: 'include',
+      headers: {
               'Content-Type': 'application/json'
             }
           });
@@ -323,8 +323,8 @@ export default function App() {
       // 1b. Fetch Bookings for statistics
       try {
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Booking?fields=["name","property","booking_date","booking_amount","status","starting_date","ending_date","customer"]&limit_page_length=500`, {
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -341,8 +341,8 @@ export default function App() {
       let finalInvoices = [];
       try {
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Sales%20Invoice?fields=%5B%22name%22%2C%22customer%22%2C%22customer_name%22%2C%22posting_date%22%2C%22due_date%22%2C%22grand_total%22%2C%22status%22%5D&limit_page_length=500`, {
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -378,8 +378,8 @@ export default function App() {
       // 3. Fetch Customers for Tenants
       try {
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Customer?fields=%5B%22name%22%2C%22customer_name%22%2C%22owner%22%2C%22email%22%2C%22phone_no%22%5D&limit_page_length=200`, {
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -450,8 +450,8 @@ export default function App() {
       // 4. Fetch Suppliers for Owners
       try {
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Supplier?fields=%5B%22name%22%2C%22supplier_name%22%2C%22owner%22%5D`, {
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -482,8 +482,8 @@ export default function App() {
       // 5. Fetch Issues for Helpdesk Support
       try {
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Issue?fields=%5B%22name%22%2C%22subject%22%2C%22customer_name1%22%2C%22customer_email%22%2C%22status%22%2C%22priority%22%2C%22date%22%5D`, {
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -521,8 +521,8 @@ export default function App() {
       // 6. Fetch Maintenance Visit
       try {
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Visit?fields=%5B%22name%22%2C%22mntc_date%22%2C%22mntc_time%22%2C%22completion_status%22%2C%22customer_name%22%2C%22maintenance_type%22%2C%22company%22%5D`, {
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -540,8 +540,8 @@ export default function App() {
       // 7. Fetch Maintenance Schedule
       try {
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule?fields=%5B%22name%22%2C%22customer%22%2C%22transaction_date%22%2C%22status%22%2C%22customer_name%22%2C%22company%22%2C%22_assign%22%2C%22custom_property%22%5D`, {
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -552,8 +552,8 @@ export default function App() {
             const detailedSchedules = await Promise.all(list.map(async (sch) => {
                try {
                  const detailRes = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule/${sch.name}`, {
-                   headers: {
-                     'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+                   credentials: 'include',
+      headers: {
                      'Content-Type': 'application/json'
                    }
                  });
@@ -583,8 +583,8 @@ export default function App() {
       // 9. Fetch Accounts
       try {
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Account?fields=%5B%22name%22%2C%22account_name%22%2C%22root_type%22%2C%22is_group%22%2C%22parent_account%22%5D&limit_page_length=200`, {
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -602,8 +602,8 @@ export default function App() {
       // 10. Fetch GL Entries
       try {
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/GL%20Entry?fields=%5B%22account%22%2C%22debit%22%2C%22credit%22%2C%22posting_date%22%5D&limit_page_length=200`, {
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -621,8 +621,8 @@ export default function App() {
       // 11. Fetch Employees from ERPNext Employee Doctype
       try {
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Employee?fields=%5B%22name%22%2C%22employee_name%22%2C%22department%22%2C%22designation%22%2C%22status%22%2C%22date_of_joining%22%2C%22company_email%22%2C%22cell_number%22%2C%22reports_to%22%2C%22image%22%5D&limit_page_length=200`, {
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -663,8 +663,8 @@ export default function App() {
       // 12. Fetch Departments from ERPNext Doctype
       try {
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Department?fields=%5B%22name%22%5D&limit_page_length=100`, {
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -682,8 +682,8 @@ export default function App() {
       // 13. Fetch Designations from ERPNext Doctype
       try {
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Designation?fields=%5B%22name%22%5D&limit_page_length=100`, {
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -784,8 +784,8 @@ export default function App() {
         try {
           // Find employee record linked by user_id
           const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Employee?filters=[["Employee","user_id","=","${loggedInUser}"]]&fields=["employee_name","designation","image"]`, {
-            headers: {
-              'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+            credentials: 'include',
+      headers: {
               'Content-Type': 'application/json'
             }
           });
@@ -802,8 +802,8 @@ export default function App() {
             } else {
               // Try querying User doctype directly to get the full name if no Employee is linked
               const userRes = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/User/${loggedInUser}`, {
-                headers: {
-                  'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+                credentials: 'include',
+      headers: {
                   'Content-Type': 'application/json'
                 }
               });
@@ -834,7 +834,8 @@ export default function App() {
     try {
       const res = await fetch(`${ERPNEXT_CONFIG.url}/api/method/login`, {
         method: 'POST',
-        headers: {
+        credentials: 'include',
+      headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
@@ -895,8 +896,8 @@ export default function App() {
     if (ERPNEXT_CONFIG) {
       const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule`, {
         method: 'POST',
-        headers: {
-          'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+        credentials: 'include',
+      headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(newSchedule)
@@ -905,8 +906,8 @@ export default function App() {
         const data = await res.json();
         const createdDoc = data.data || data;
         const detailRes = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule/${createdDoc.name}`, {
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -958,8 +959,8 @@ export default function App() {
       try {
         await fetch(`${ERPNEXT_CONFIG.url}/api/method/frappe.desk.form.assign_to.add`, {
           method: 'POST',
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
@@ -979,8 +980,8 @@ export default function App() {
     if (ERPNEXT_CONFIG && ERPNEXT_CONFIG.url) {
       const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Visit`, {
         method: 'POST',
-        headers: {
-          'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+        credentials: 'include',
+      headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(newVisit)
@@ -989,8 +990,8 @@ export default function App() {
         const data = await res.json();
         const createdDoc = data.data || data;
         const detailRes = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Visit/${createdDoc.name}`, {
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -1045,8 +1046,8 @@ export default function App() {
       try {
         await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule/${parentName}`, {
           method: 'PUT',
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ schedules: updatedScheduleDoc.schedules })
@@ -1077,8 +1078,8 @@ export default function App() {
       try {
         await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Visit/${visitName}`, {
           method: 'PUT',
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ completion_status: erpStatus })
@@ -1094,8 +1095,8 @@ export default function App() {
       try {
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Issue`, {
           method: 'POST',
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(newIssue)
@@ -1162,8 +1163,8 @@ export default function App() {
       try {
         await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Sales%20Invoice/${invId}`, {
           method: 'PUT',
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ status: 'Paid' })
@@ -1190,8 +1191,8 @@ export default function App() {
       try {
         await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Communication`, {
           method: 'POST',
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
@@ -1230,8 +1231,8 @@ export default function App() {
 
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Employee`, {
           method: 'POST',
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(payload)

@@ -80,8 +80,8 @@ export default function Booking({ erpnextConfig }) {
     setLoadingFields(true);
     try {
       const res = await fetch(`${erpnextConfig.url}/api/resource/DocType/Booking`, {
-        headers: {
-          'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+        credentials: 'include',
+      headers: {
           'Content-Type': 'application/json'
         }
       });
@@ -131,8 +131,8 @@ export default function Booking({ erpnextConfig }) {
         setSyncStatus('Fetching from ERPNext custom API...');
         try {
           const res = await fetch(`${erpnextConfig.url}${apiPath}`, {
-            headers: {
-              'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+            credentials: 'include',
+      headers: {
               'Content-Type': 'application/json'
             }
           });
@@ -152,8 +152,8 @@ export default function Booking({ erpnextConfig }) {
             resourceUrl += `&filters=[["Booking","customer","=","${cust}"]]`;
           }
           const res = await fetch(resourceUrl, {
-            headers: {
-              'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+            credentials: 'include',
+      headers: {
               'Content-Type': 'application/json'
             }
           });
@@ -192,8 +192,8 @@ export default function Booking({ erpnextConfig }) {
         try {
           // Attempt custom method 1: get_booking_details
           const res = await fetch(`${erpnextConfig.url}/api/method/erpnext.api.booking.get_booking_details?booking_id=${id}`, {
-            headers: {
-              'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+            credentials: 'include',
+      headers: {
               'Content-Type': 'application/json'
             }
           });
@@ -203,8 +203,8 @@ export default function Booking({ erpnextConfig }) {
           } else {
             // Attempt custom method 2: get_booking
             const res2 = await fetch(`${erpnextConfig.url}/api/method/erpnext.api.booking.get_booking?booking_id=${id}`, {
-              headers: {
-                'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+              credentials: 'include',
+      headers: {
                 'Content-Type': 'application/json'
               }
             });
@@ -219,8 +219,8 @@ export default function Booking({ erpnextConfig }) {
           console.warn('Custom details APIs failed, loading via resource detail...', detailErr);
           // Standard resource detail fallback
           const res = await fetch(`${erpnextConfig.url}/api/resource/Booking/${id}`, {
-            headers: {
-              'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+            credentials: 'include',
+      headers: {
               'Content-Type': 'application/json'
             }
           });
@@ -282,8 +282,8 @@ export default function Booking({ erpnextConfig }) {
         try {
           const res = await fetch(`${erpnextConfig.url}/api/method/erpnext.api.booking.create_booking`, {
             method: 'POST',
-            headers: {
-              'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+            credentials: 'include',
+      headers: {
               'Content-Type': 'application/json'
             },
             body: JSON.stringify(formData)
@@ -299,8 +299,8 @@ export default function Booking({ erpnextConfig }) {
           // Standard resource fallback
           const res = await fetch(`${erpnextConfig.url}/api/resource/Booking`, {
             method: 'POST',
-            headers: {
-              'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+            credentials: 'include',
+      headers: {
               'Content-Type': 'application/json'
             },
             body: JSON.stringify(formData)

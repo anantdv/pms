@@ -28,8 +28,8 @@ export default function Mall3DView({ compact = false, properties = [] }) {
 
       try {
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/method/erpnext.api.get_units?property_group=${selectedPropertyId}`, {
-          headers: {
-            'Authorization': `token ${ERPNEXT_CONFIG.apiKey}:${ERPNEXT_CONFIG.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });

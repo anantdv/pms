@@ -69,8 +69,8 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
       setLoadingBookings(true);
       try {
         const res = await fetch(`${erpnextConfig.url}/api/resource/Booking?fields=%5B%22name%22%5D&limit_page_length=20`, {
-          headers: {
-            'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -80,8 +80,8 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
           const resolved = await Promise.all(list.map(async (b) => {
             try {
               const bRes = await fetch(`${erpnextConfig.url}/api/resource/Booking/${b.name}`, {
-                headers: {
-                  'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+                credentials: 'include',
+      headers: {
                   'Content-Type': 'application/json'
                 }
               });
@@ -94,8 +94,8 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
                   : bDoc.property;
                 if (itemCode) {
                   const uRes = await fetch(`${erpnextConfig.url}/api/method/erpnext.api.get_unit?item_code=${encodeURIComponent(itemCode)}`, {
-                    headers: {
-                      'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+                    credentials: 'include',
+      headers: {
                       'Content-Type': 'application/json'
                     }
                   });
@@ -243,8 +243,8 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
       try {
         await fetch(`${erpnextConfig.url}/api/resource/Issue/${ticketId}`, {
           method: 'PUT',
-          headers: {
-            'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ status: erpStatus })
@@ -319,8 +319,8 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
       try {
         await fetch(`${erpnextConfig.url}/api/resource/Issue/${ticketId}`, {
           method: 'PUT',
-          headers: {
-            'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ status: erpStatus })

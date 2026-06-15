@@ -56,8 +56,8 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
     const fetchCompany = async () => {
       try {
         const res = await fetch(`${erpnextConfig.url}/api/resource/Company/CARPENTERS PROPERTIES PTE LIMITED`, {
-          headers: {
-            'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -72,8 +72,8 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
 
           // Try fetching linked Address
           const addrRes = await fetch(`${erpnextConfig.url}/api/resource/Address?filters=[["Dynamic Link", "link_doctype", "=", "Company"], ["Dynamic Link", "link_name", "=", "${doc.name}"]]&fields=["address_line1","address_line2","city","state","country","pincode","phone","email_id"]`, {
-            headers: {
-              'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+            credentials: 'include',
+      headers: {
               'Content-Type': 'application/json'
             }
           });
@@ -112,8 +112,8 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
       setLoadingExtra(true);
       try {
         const res = await fetch(`${erpnextConfig.url}/api/resource/Sales%20Invoice/${targetInvoice.id}`, {
-          headers: {
-            'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -131,8 +131,8 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
           if (customerId) {
             try {
               const custRes = await fetch(`${erpnextConfig.url}/api/resource/Address?filters=[["Dynamic Link", "link_doctype", "=", "Customer"], ["Dynamic Link", "link_name", "=", "${customerId}"]]&fields=["address_line1","address_line2","city","state","country","pincode"]`, {
-                headers: {
-                  'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+                credentials: 'include',
+      headers: {
                   'Content-Type': 'application/json'
                 }
               });
@@ -153,8 +153,8 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
           if (itemCode) {
             try {
               const uRes = await fetch(`${erpnextConfig.url}/api/method/erpnext.api.get_unit?item_code=${encodeURIComponent(itemCode)}`, {
-                headers: {
-                  'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+                credentials: 'include',
+      headers: {
                   'Content-Type': 'application/json'
                 }
               });

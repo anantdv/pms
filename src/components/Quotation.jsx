@@ -49,8 +49,8 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
     const fetchCompany = async () => {
       try {
         const res = await fetch(`${erpnextConfig.url}/api/resource/Company/CARPENTERS PROPERTIES PTE LIMITED`, {
-          headers: {
-            'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -65,8 +65,8 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
 
           // Fetch Address
           const addrRes = await fetch(`${erpnextConfig.url}/api/resource/Address?filters=[["Dynamic Link", "link_doctype", "=", "Company"], ["Dynamic Link", "link_name", "=", "${doc.name}"]]&fields=["address_line1","address_line2","city","state","country","pincode","phone","email_id"]`, {
-            headers: {
-              'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+            credentials: 'include',
+      headers: {
               'Content-Type': 'application/json'
             }
           });
@@ -97,8 +97,8 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
     if (!erpnextConfig || !erpnextConfig.url) return;
     try {
       const res = await fetch(`${erpnextConfig.url}/api/resource/Customer?fields=["name","customer_name"]&limit_page_length=200`, {
-        headers: {
-          'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+        credentials: 'include',
+      headers: {
           'Content-Type': 'application/json'
         }
       });
@@ -116,8 +116,8 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
     if (!erpnextConfig || !erpnextConfig.url) return;
     try {
       const res = await fetch(`${erpnextConfig.url}/api/resource/Property%20Group?fields=["name"]&limit_page_length=200`, {
-        headers: {
-          'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+        credentials: 'include',
+      headers: {
           'Content-Type': 'application/json'
         }
       });
@@ -135,8 +135,8 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
     if (!erpnextConfig || !erpnextConfig.url) return;
     try {
       const res = await fetch(`${erpnextConfig.url}/api/resource/Quotation%20Template?fields=["name"]&limit_page_length=200`, {
-        headers: {
-          'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+        credentials: 'include',
+      headers: {
           'Content-Type': 'application/json'
         }
       });
@@ -158,8 +158,8 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
         url += `&filters=[["Item","custom_property_reference","=","${propertyGroupId}"]]`;
       }
       const res = await fetch(url, {
-        headers: {
-          'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+        credentials: 'include',
+      headers: {
           'Content-Type': 'application/json'
         }
       });
@@ -184,8 +184,8 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
     setLoading(true);
     try {
       const res = await fetch(`${erpnextConfig.url}/api/resource/Quotation?fields=["name","customer_name","party_name","transaction_date","valid_till","grand_total","status"]&limit_page_length=100`, {
-        headers: {
-          'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+        credentials: 'include',
+      headers: {
           'Content-Type': 'application/json'
         }
       });
@@ -222,8 +222,8 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
     if (!erpnextConfig || !erpnextConfig.url) return;
     try {
       const res = await fetch(`${erpnextConfig.url}/api/resource/Quotation/${qName}`, {
-        headers: {
-          'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+        credentials: 'include',
+      headers: {
           'Content-Type': 'application/json'
         }
       });
@@ -237,8 +237,8 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
         if (actualCustomer) {
           // Fetch Address linked to customer
           const addrRes = await fetch(`${erpnextConfig.url}/api/resource/Address?filters=[["Dynamic Link", "link_doctype", "=", "Customer"], ["Dynamic Link", "link_name", "=", "${actualCustomer}"]]&fields=["address_line1","address_line2","city","state","country","pincode"]`, {
-            headers: {
-              'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+            credentials: 'include',
+      headers: {
               'Content-Type': 'application/json'
             }
           });
@@ -255,8 +255,8 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
 
           // Fetch Contact linked to customer
           const contactRes = await fetch(`${erpnextConfig.url}/api/resource/Contact?filters=[["Dynamic Link", "link_doctype", "=", "Customer"], ["Dynamic Link", "link_name", "=", "${actualCustomer}"]]&fields=["email_id","phone"]`, {
-            headers: {
-              'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+            credentials: 'include',
+      headers: {
               'Content-Type': 'application/json'
             }
           });
@@ -357,8 +357,8 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
       if (erpnextConfig && erpnextConfig.url) {
         const res = await fetch(`${erpnextConfig.url}/api/resource/Quotation`, {
           method: 'POST',
-          headers: {
-            'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(payload)
@@ -413,8 +413,8 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
       if (erpnextConfig && erpnextConfig.url) {
         const res = await fetch(`${erpnextConfig.url}/api/resource/Quotation/${qName}`, {
           method: 'PUT',
-          headers: {
-            'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ status: 'Cancelled' })
@@ -446,8 +446,8 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
       if (erpnextConfig && erpnextConfig.url) {
         const cancelRes = await fetch(`${erpnextConfig.url}/api/resource/Quotation/${selectedQuotationDetail.name}`, {
           method: 'PUT',
-          headers: {
-            'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ status: 'Cancelled' })
@@ -502,8 +502,8 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
       if (erpnextConfig && erpnextConfig.url) {
         const createRes = await fetch(`${erpnextConfig.url}/api/resource/Quotation`, {
           method: 'POST',
-          headers: {
-            'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(payload)

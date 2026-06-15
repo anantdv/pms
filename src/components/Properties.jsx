@@ -49,15 +49,12 @@ function SecureImage({ src, alt, style, className, erpnextConfig }) {
 
     const controller = new AbortController();
     const headers = {};
-    if (erpnextConfig && erpnextConfig.apiKey) {
-      headers['Authorization'] = `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`;
-    } else {
-      headers['Authorization'] = 'token ed0af4eb51b07ca:650a348e03a9928';
-    }
+    
 
     async function fetchImage() {
       try {
         const res = await fetch(src, {
+          credentials: 'include',
           headers,
           signal: controller.signal
         });
@@ -217,8 +214,8 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
       // 1. Fetch Property Group Details
       try {
         const res = await fetch(`${erpnextConfig.url}/api/method/erpnext.api.get_property_group?name=${selectedProp.id}`, {
-          headers: {
-            'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -238,8 +235,8 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
       // 2. Fetch Units List
       try {
         const res = await fetch(`${erpnextConfig.url}/api/method/erpnext.api.get_units?property_group=${selectedProp.id}`, {
-          headers: {
-            'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+          credentials: 'include',
+      headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -293,8 +290,8 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
 
     try {
       const res = await fetch(`${erpnextConfig.url}/api/method/erpnext.api.get_unit?item_code=${unitId}`, {
-        headers: {
-          'Authorization': `token ${erpnextConfig.apiKey}:${erpnextConfig.apiSecret}`,
+        credentials: 'include',
+      headers: {
           'Content-Type': 'application/json'
         }
       });
