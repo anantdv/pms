@@ -139,32 +139,25 @@ export default function App() {
   const [preSelectedProperty, setPreSelectedProperty] = useState(null);
   
   // App Global State
-  const [properties, setProperties] = useState(INITIAL_PROPERTIES);
-  const [tenants, setTenants] = useState(INITIAL_TENANTS);
-  const [owners, setOwners] = useState(INITIAL_OWNERS);
-  const [schedules, setSchedules] = useState(INITIAL_SCHEDULES);
-  const [visits, setVisits] = useState(INITIAL_VISITS);
-  const [invoices, setInvoices] = useState(INITIAL_INVOICES);
-  const [accounts, setAccounts] = useState([
-    { name: '1001 - Cash / Bank (Asset) - CFPL', account_name: 'Cash / Bank (Asset)', root_type: 'Asset', parent_account: 'Current Assets' },
-    { name: '1200 - Accounts Receivable (Asset) - CFPL', account_name: 'Accounts Receivable (Asset)', root_type: 'Asset', parent_account: 'Current Assets' },
-    { name: '4000 - Rental Revenue (Income) - CFPL', account_name: 'Rental Revenue (Income)', root_type: 'Income', parent_account: 'Revenue' }
-  ]);
-  const [glEntries, setGlEntries] = useState([
-    { account: '1001 - Cash / Bank (Asset) - CFPL', debit: 9850, credit: 0 },
-    { account: '1200 - Accounts Receivable (Asset) - CFPL', debit: 6650, credit: 0 },
-    { account: '4000 - Rental Revenue (Income) - CFPL', debit: 0, credit: 16500 }
-  ]);
-  const [supportTickets, setSupportTickets] = useState(INITIAL_SUPPORT);
-  const [employees, setEmployees] = useState(INITIAL_EMPLOYEES);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [properties, setProperties] = useState([]);
+  const [tenants, setTenants] = useState([]);
+  const [owners, setOwners] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [visits, setVisits] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [glEntries, setGlEntries] = useState([]);
+  const [supportTickets, setSupportTickets] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [erpnextDepts, setErpnextDepts] = useState(['Executive', 'Technology', 'Human Resources', 'Operations', 'Finance']);
   const [erpnextDesgs, setErpnextDesgs] = useState(['Chief Executive Officer', 'Chief Technology Officer', 'HR Director', 'Operations Manager', 'Chief Financial Officer', 'Lead Systems Architect', 'HR Officer', 'Facility Supervisor', 'Senior Accountant', 'Support Engineer']);
   const [dashboardStats, setDashboardStats] = useState({
-    totalProperties: 412,
-    occupancyRate: 94.2,
-    monthlyRevenue: 285.5,
-    pendingMaintenance: 28
+    totalProperties: 0,
+    occupancyRate: 0,
+    monthlyRevenue: 0,
+    pendingMaintenance: 0
   });
 
   // Calendar states
@@ -183,8 +176,10 @@ export default function App() {
   // Sync with ERPNext server API
   useEffect(() => {
     async function fetchERPNextData() {
-      let finalProps = INITIAL_PROPERTIES;
-      let finalBookings = [];
+      setDataLoading(true);
+      try {
+        let finalProps = [];
+        let finalBookings = [];
 
       // 1. Fetch Property Groups
       try {
@@ -747,6 +742,9 @@ export default function App() {
         monthlyRevenue: parseFloat((currentMonthRevenue / 1000).toFixed(1)) || 285.5,
         pendingMaintenance: pendingMaintCount || 2
       });
+      } finally {
+        setDataLoading(false);
+      }
     }
 
     fetchERPNextData();
@@ -1865,6 +1863,15 @@ export default function App() {
 
 
   const renderActiveView = () => {
+    if (dataLoading && currentTab !== 'reports' && currentTab !== 'mall-3d') {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
+          <div className="spin" style={{ width: 40, height: 40, border: '4px solid #cbd5e1', borderTopColor: '#3b82f6', borderRadius: '50%' }}></div>
+          <p style={{ fontSize: '1rem', color: '#64748b', fontWeight: 500 }}>Syncing with ERPNext Server...</p>
+        </div>
+      );
+    }
+
     switch (currentTab) {
       case 'properties': 
         return (
