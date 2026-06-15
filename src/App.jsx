@@ -1949,18 +1949,7 @@ export default function App() {
         flexDirection: 'column'
       }}>
         {/* Navigation Header */}
-        <header style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '20px 40px',
-          borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
-          background: 'rgba(255, 255, 255, 0.85)',
-          backdropFilter: 'blur(12px)',
-          position: 'sticky',
-          top: 0,
-          zIndex: 1000
-        }}>
+        <header className="portal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <svg viewBox="0 0 100 100" style={{ width: 44, height: 44 }}>
               <rect width="100" height="100" fill="#000000" rx="12"/>
@@ -1973,10 +1962,10 @@ export default function App() {
               <span style={{ fontSize: '11px', color: '#b59b00', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pte Limited</span>
             </div>
           </div>
-          <nav style={{ display: 'flex', gap: '28px', alignItems: 'center' }}>
+          <nav className="portal-nav">
             <a href="#about" style={{ color: '#475569', textDecoration: 'none', fontSize: '13px', fontWeight: 500, transition: 'color 0.2s' }} onMouseEnter={(e) => e.target.style.color = '#0f172a'} onMouseLeave={(e) => e.target.style.color = '#475569'}>About Us</a>
             <a href="#developments" style={{ color: '#475569', textDecoration: 'none', fontSize: '13px', fontWeight: 500, transition: 'color 0.2s' }} onMouseEnter={(e) => e.target.style.color = '#0f172a'} onMouseLeave={(e) => e.target.style.color = '#475569'}>Flagship Projects</a>
-            <a href="#portal" style={{
+            <a href="#portal" className="portal-btn-primary" style={{
               background: 'rgba(255, 221, 0, 0.15)',
               color: '#9a8100',
               padding: '8px 18px',
@@ -1991,16 +1980,7 @@ export default function App() {
         </header>
 
         {/* Hero split-screen section */}
-        <section id="portal" style={{
-          display: 'grid',
-          gridTemplateColumns: '1.2fr 0.8fr',
-          gap: '40px',
-          padding: '60px 40px',
-          maxWidth: '1280px',
-          margin: '0 auto',
-          alignItems: 'center',
-          flex: 1
-        }}>
+        <section id="portal" className="portal-grid">
           {/* Left Column: Copy & Stats */}
           <div style={{ textAlign: 'left' }}>
             <span style={{
@@ -2017,14 +1997,14 @@ export default function App() {
             }}>
               Division of W.R. Carpenter (South Pacific) Group
             </span>
-            <h2 style={{ fontSize: '3.2rem', fontWeight: 800, lineHeight: 1.15, marginBottom: '20px', letterSpacing: '-0.03em', fontFamily: 'var(--font-heading)', color: '#0f172a' }}>
+            <h2 className="portal-hero-title">
               Shaping Fiji's Future through <span style={{ borderBottom: '3px solid #FFDD00' }}>Landmark Real Estate</span>
             </h2>
-            <p style={{ color: '#475569', fontSize: '16px', lineHeight: 1.6, marginBottom: '32px', maxWidth: '600px' }}>
+            <p className="portal-hero-desc">
               Carpenters Properties Pte Limited is the premier property developer in Fiji. From state-of-the-art office towers and commercial shopping hubs to luxury foreshore mixed-use complexes, we construct, lease, and manage high-value real estate.
             </p>
 
-            <div style={{ display: 'flex', gap: '30px' }}>
+            <div className="portal-stats-row">
               <div>
                 <div style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a' }}>10+</div>
                 <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Flagship Centers</div>

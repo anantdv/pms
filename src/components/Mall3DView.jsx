@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { RotateCw, Maximize2, Layers, HelpCircle, Merge, Trash2, Plus, Sparkles, Building } from 'lucide-react';
 import { ERPNEXT_CONFIG } from '../config';
+import houseImg from '../../house.png';
 
 // Modern Architectural Building Units Data (Resembling the attached image)
 const INITIAL_UNITS = [
@@ -689,7 +690,7 @@ export default function Mall3DView({ compact = false, properties = [] }) {
           padding: '10px'
         }}>
           <img 
-            src="/house.png" 
+            src={houseImg} 
             alt="3D Building Architecture Preview" 
             style={{ 
               width: '100%', 
