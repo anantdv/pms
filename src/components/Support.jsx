@@ -349,7 +349,7 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
 
   const openTickets = localTickets.filter(t => t.status !== 'closed' && t.status !== 'resolved');
   const closedTickets = localTickets.filter(t => t.status === 'closed' || t.status === 'resolved');
-  const selectedTicket = localTickets.find(t => t.id === selectedTicketId);
+  const selectedTicket = localTickets.find(t => String(t.id).toLowerCase() === String(selectedTicketId).toLowerCase());
 
   const currentItems = localTickets.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const totalPages = Math.ceil(localTickets.length / itemsPerPage);

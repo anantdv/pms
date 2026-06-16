@@ -150,17 +150,17 @@ export default function Maintenance({
   }, [preSelectedProperty, tenants, clearPreSelectedProperty]);
 
   const getPropertyByUnit = (unitId) => {
-    const tenant = tenants.find(t => t.unitSpec === unitId || t.id === unitId || t.name === unitId);
+    const tenant = (tenants || []).find(t => t.unitSpec === unitId || t.id === unitId || t.name === unitId);
     if (tenant) {
       return tenant.propertyGroup || tenant.propertyName;
     }
-    const prop = properties.find(p => p.id === unitId || p.name === unitId);
+    const prop = (properties || []).find(p => p.id === unitId || p.name === unitId);
     if (prop) return prop.name;
     return 'N/A';
   };
 
   const getPropertyNameById = (propId) => {
-    const prop = properties.find(p => p.id === propId || p.name === propId);
+    const prop = (properties || []).find(p => p.id === propId || p.name === propId);
     return prop ? prop.name : "Stratford Court Apartments";
   };
 
@@ -837,7 +837,7 @@ export default function Maintenance({
                     <label className="form-label">Assign Property Group</label>
                     <select value={schedPropertyId} onChange={(e) => setSchedPropertyId(e.target.value)} className="form-select" required>
                       <option value="">-- Choose Property --</option>
-                      {properties.map(p => (
+                      {(properties || []).map(p => (
                         <option key={p.id} value={p.id}>{p.name}</option>
                       ))}
                     </select>
@@ -849,7 +849,7 @@ export default function Maintenance({
                     <label className="form-label">Customer (Tenant)</label>
                     <select value={schedCustomer} onChange={(e) => setSchedCustomer(e.target.value)} className="form-select">
                       <option value="">-- Choose Tenant --</option>
-                      {tenants.map(t => (
+                      {(tenants || []).map(t => (
                         <option key={t.id} value={t.id}>{t.name}</option>
                       ))}
                     </select>
@@ -938,7 +938,7 @@ export default function Maintenance({
                   <label className="form-label">Property group</label>
                   <select value={selectedPropertyId} onChange={(e) => setSelectedPropertyId(e.target.value)} className="form-select" required>
                     <option value="">-- Choose Property --</option>
-                    {properties.map(p => (
+                    {(properties || []).map(p => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
