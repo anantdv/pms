@@ -497,9 +497,9 @@ export default function Booking({ erpnextConfig }) {
                 <tr>
                   <th>Booking ID</th>
                   <th>Booking Date</th>
-                  <th>Customer Info</th>
+                  <th>Tenant info</th>
                   <th>Property Unit</th>
-                  <th>Type</th>
+                  <th>Property Group</th>
                   <th>Status</th>
                   <th>Amount</th>
                   <th>Payment Status</th>
@@ -529,8 +529,8 @@ export default function Booking({ erpnextConfig }) {
                       {b.property || 'Not specified'}
                     </td>
                     <td>
-                      <span className={`badge ${b.booking_type === 'Sale' ? 'badge-info' : b.booking_type === 'Lease' ? 'badge-primary' : 'badge-secondary'}`}>
-                        {b.booking_type || 'Rent'}
+                      <span className="badge badge-secondary" style={{ textTransform: 'none' }}>
+                        {b.property_group || b.property || 'N/A'}
                       </span>
                     </td>
                     <td>
@@ -603,7 +603,12 @@ export default function Booking({ erpnextConfig }) {
           <div className="card-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: 12 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--brand-color)' }}>{selectedBookingId} Details</span>
-              <button onClick={() => setSelectedBookingId(null)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 16 }}>×</button>
+              <button 
+                onClick={() => setSelectedBookingId(null)} 
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <X size={18} />
+              </button>
             </div>
 
             {loadingDetails ? (
@@ -621,7 +626,7 @@ export default function Booking({ erpnextConfig }) {
                     <strong style={{ fontSize: 15, color: 'var(--text-primary)' }}>{selectedBookingDetails.property || 'Property Unit'}</strong>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    Type: <strong style={{ color: 'var(--text-secondary)' }}>{selectedBookingDetails.booking_type}</strong> | Status: <strong style={{ color: 'var(--color-success)' }}>{selectedBookingDetails.status}</strong>
+                    Type: <strong style={{ color: 'var(--text-secondary)' }}>{selectedBookingDetails.booking_type}</strong> | Status: <strong style={{ color: 'var(--color-success)' }}>{selectedBookingDetails.workflow_state || selectedBookingDetails.status || 'Pending'}</strong>
                   </div>
                 </div>
 
@@ -630,11 +635,6 @@ export default function Booking({ erpnextConfig }) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--bg-tertiary)', paddingBottom: 6 }}>
                     <span style={{ color: 'var(--text-muted)' }}>Booking Date:</span>
                     <strong style={{ color: 'var(--text-secondary)' }}>{selectedBookingDetails.booking_date}</strong>
-                  </div>
-                  
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--bg-tertiary)', paddingBottom: 6 }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Customer ID:</span>
-                    <strong style={{ color: 'var(--text-secondary)' }}>{selectedBookingDetails.customer}</strong>
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--bg-tertiary)', paddingBottom: 6 }}>
@@ -668,12 +668,37 @@ export default function Booking({ erpnextConfig }) {
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--bg-tertiary)', paddingBottom: 6 }}>
                     <span style={{ color: 'var(--text-muted)' }}>Total Days:</span>
-                    <strong style={{ color: 'var(--text-secondary)' }}>{selectedBookingDetails.total_days || 'N/A'}</strong>
+                    <strong style={{ color: 'var(--text-secondary)' }}>
+                      {(() => {
+                        const start = selectedBookingDetails.starting_date || selectedBookingDetails.start_date;
+                        const end = selectedBookingDetails.ending_date || selectedBookingDetails.end_date;
+                        if (start && end) {
+                          const startDate = new Date(start);
+                          const endDate = new Date(end);
+                          if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+                            const diffTime = endDate.getTime() - startDate.getTime();
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                            return diffDays >= 0 ? diffDays : 'N/A';
+                          }
+                        }
+                        return selectedBookingDetails.total_days || 'N/A';
+                      })()}
+                    </strong>
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--bg-tertiary)', paddingBottom: 6 }}>
                     <span style={{ color: 'var(--text-muted)' }}>Billing Cycle Date:</span>
-                    <strong style={{ color: 'var(--text-secondary)' }}>{selectedBookingDetails.billing_cycle || 'Monthly'}</strong>
+                    <strong style={{ color: 'var(--text-secondary)' }}>
+                      {(() => {
+                        const cycle = selectedBookingDetails.billing_cycle || selectedBookingDetails.billing_cycle_date;
+                        if (!cycle) return 'N/A';
+                        const date = new Date(cycle);
+                        if (!isNaN(date.getTime()) && String(cycle).includes('-')) {
+                          return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+                        }
+                        return cycle;
+                      })()}
+                    </strong>
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--bg-tertiary)', paddingBottom: 6 }}>

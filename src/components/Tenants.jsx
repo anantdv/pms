@@ -103,12 +103,10 @@ export default function Tenants({ tenants, properties, onAddTenant, erpnextConfi
   const [propertyId, setPropertyId] = useState('');
   const [leaseStart, setLeaseStart] = useState('');
   const [leaseEnd, setLeaseEnd] = useState('');
-  const [rentStatus, setRentStatus] = useState('paid');
   const [tenantType, setTenantType] = useState('External');
   const [unitSpec, setUnitSpec] = useState('');
   const [rentAmount, setRentAmount] = useState('');
-  const [lastPaidAmount, setLastPaidAmount] = useState('');
-  const [lastPaidDate, setLastPaidDate] = useState('');
+  const [address, setAddress] = useState('');
 
   const handlePropertyChange = (val) => {
     setPropertyId(val);
@@ -135,11 +133,12 @@ export default function Tenants({ tenants, properties, onAddTenant, erpnextConfi
       unitSpec,
       tenantType,
       rentAmount: Number(rentAmount || matchedProp?.rent || 0),
-      lastPaidAmount: Number(lastPaidAmount || 0),
-      lastPaidDate: lastPaidDate || 'N/A',
+      lastPaidAmount: 0,
+      lastPaidDate: 'N/A',
       leaseStart,
       leaseEnd,
-      rentStatus
+      rentStatus: 'pending',
+      address
     });
 
     setName('');
@@ -148,12 +147,10 @@ export default function Tenants({ tenants, properties, onAddTenant, erpnextConfi
     setPropertyId('');
     setLeaseStart('');
     setLeaseEnd('');
-    setRentStatus('paid');
     setTenantType('External');
     setUnitSpec('');
     setRentAmount('');
-    setLastPaidAmount('');
-    setLastPaidDate('');
+    setAddress('');
     setShowModal(false);
   };
 
@@ -391,21 +388,6 @@ export default function Tenants({ tenants, properties, onAddTenant, erpnextConfi
                   </div>
                 </div>
 
-                <div className="grid-3col" style={{ gap: 16, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
-                  <div className="form-group">
-                    <label className="form-label">Rent Amount ($)</label>
-                    <input type="number" value={rentAmount} onChange={(e) => setRentAmount(e.target.value)} placeholder="Rent / mo" className="form-input" required />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Last Paid ($)</label>
-                    <input type="number" value={lastPaidAmount} onChange={(e) => setLastPaidAmount(e.target.value)} placeholder="Last paid" className="form-input" required />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Last Paid Date</label>
-                    <input type="date" value={lastPaidDate} onChange={(e) => setLastPaidDate(e.target.value)} className="form-input" />
-                  </div>
-                </div>
-
                 <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
                   <div className="form-group">
                     <label className="form-label">Lease Start Date</label>
@@ -417,13 +399,22 @@ export default function Tenants({ tenants, properties, onAddTenant, erpnextConfi
                   </div>
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">Rent Status</label>
-                  <select value={rentStatus} onChange={(e) => setRentStatus(e.target.value)} className="form-select">
-                    <option value="paid">Paid</option>
-                    <option value="pending">Pending Invoice</option>
-                    <option value="overdue">Overdue / Default</option>
-                  </select>
+                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1.5fr' }}>
+                  <div className="form-group">
+                    <label className="form-label">Rent Amount ($)</label>
+                    <input type="number" value={rentAmount} onChange={(e) => setRentAmount(e.target.value)} placeholder="Rent / mo" className="form-input" required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Address</label>
+                    <textarea 
+                      value={address} 
+                      onChange={(e) => setAddress(e.target.value)} 
+                      placeholder="e.g. 123 Main St, Suite 400" 
+                      className="form-input" 
+                      style={{ minHeight: '38px', height: '38px', resize: 'none', padding: '6px 12px' }} 
+                      required 
+                    />
+                  </div>
                 </div>
               </div>
               

@@ -444,7 +444,7 @@ export default function App() {
 
       // 4. Fetch Suppliers for Owners
       try {
-        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Supplier?fields=%5B%22name%22%2C%22supplier_name%22%2C%22owner%22%5D`, {
+        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Supplier?fields=%5B%22name%22%2C%22supplier_name%22%2C%22owner%22%2C%22supplier_type%22%2C%22supplier_group%22%5D`, {
           credentials: 'include',
       headers: {
             'Content-Type': 'application/json'
@@ -465,13 +465,32 @@ export default function App() {
                 address: 'Level 3, Carpenters House, Rodwell Road, Suva, Fiji',
                 properties: index === 0 ? ['Stratford Court Apartments', 'Carpenters Row Commercial'] : ['Estate Galleria Mall'],
                 share: index === totalSuppliers - 1 ? 100 - (fairShare * (totalSuppliers - 1)) : fairShare,
-                lastPayout: Math.round(20000 + (Math.random() * 25000))
+                lastPayout: Math.round(20000 + (Math.random() * 25000)),
+                supplier_type: s.supplier_type || 'Services',
+                supplier_group: s.supplier_group || 'Local'
               };
             }));
+          } else {
+            setOwners([
+              { id: 'SUP-0001', name: 'Pacific Elevators Ltd', email: 'service@pacelevators.com', phone: '+679 331 2244', address: '12 Argo St, Suva', supplier_type: 'Technical Services', supplier_group: 'Local', share: 40, lastPayout: 15000, properties: ['Stratford Court Apartments'] },
+              { id: 'SUP-0002', name: 'Suva Cleaning Services', email: 'info@suvaclean.com', phone: '+679 330 9988', address: '45 Victoria Parade, Suva', supplier_type: 'Cleaning', supplier_group: 'Local', share: 30, lastPayout: 8000, properties: ['Estate Galleria Mall'] },
+              { id: 'SUP-0003', name: 'Fiji Security Solutions', email: 'patrol@fijisecurity.com', phone: '+679 338 5500', address: '88 Laucala Bay Rd, Suva', supplier_type: 'Security', supplier_group: 'Local', share: 30, lastPayout: 12000, properties: ['Carpenters Row Commercial'] }
+            ]);
           }
+        } else {
+          setOwners([
+            { id: 'SUP-0001', name: 'Pacific Elevators Ltd', email: 'service@pacelevators.com', phone: '+679 331 2244', address: '12 Argo St, Suva', supplier_type: 'Technical Services', supplier_group: 'Local', share: 40, lastPayout: 15000, properties: ['Stratford Court Apartments'] },
+            { id: 'SUP-0002', name: 'Suva Cleaning Services', email: 'info@suvaclean.com', phone: '+679 330 9988', address: '45 Victoria Parade, Suva', supplier_type: 'Cleaning', supplier_group: 'Local', share: 30, lastPayout: 8000, properties: ['Estate Galleria Mall'] },
+            { id: 'SUP-0003', name: 'Fiji Security Solutions', email: 'patrol@fijisecurity.com', phone: '+679 338 5500', address: '88 Laucala Bay Rd, Suva', supplier_type: 'Security', supplier_group: 'Local', share: 30, lastPayout: 12000, properties: ['Carpenters Row Commercial'] }
+          ]);
         }
       } catch (err) {
         console.warn('ERPNext Supplier fetch failed, using fallback mock data:', err);
+        setOwners([
+          { id: 'SUP-0001', name: 'Pacific Elevators Ltd', email: 'service@pacelevators.com', phone: '+679 331 2244', address: '12 Argo St, Suva', supplier_type: 'Technical Services', supplier_group: 'Local', share: 40, lastPayout: 15000, properties: ['Stratford Court Apartments'] },
+          { id: 'SUP-0002', name: 'Suva Cleaning Services', email: 'info@suvaclean.com', phone: '+679 330 9988', address: '45 Victoria Parade, Suva', supplier_type: 'Cleaning', supplier_group: 'Local', share: 30, lastPayout: 8000, properties: ['Estate Galleria Mall'] },
+          { id: 'SUP-0003', name: 'Fiji Security Solutions', email: 'patrol@fijisecurity.com', phone: '+679 338 5500', address: '88 Laucala Bay Rd, Suva', supplier_type: 'Security', supplier_group: 'Local', share: 30, lastPayout: 12000, properties: ['Carpenters Row Commercial'] }
+        ]);
       }
 
       // 5. Fetch Issues for Helpdesk Support
@@ -2357,7 +2376,7 @@ export default function App() {
           </div>
           <li className={`menu-item ${currentTab === 'owners' ? 'active' : ''}`} onClick={() => setCurrentTab('owners')}>
             <Award size={18} />
-            <span>Owners</span>
+            <span>Vendors</span>
           </li>
           <li className={`menu-item ${currentTab === 'tenants' ? 'active' : ''}`} onClick={() => setCurrentTab('tenants')}>
             <Users size={18} />

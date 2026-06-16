@@ -596,6 +596,20 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
                     <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {ticket.subject}
                     </div>
+
+                    {/* Resolved Metadata */}
+                    {(() => {
+                      const matchedTenant = tenants.find(t => t.name === ticket.tenantName || t.id === ticket.tenantName);
+                      const propName = matchedTenant ? (matchedTenant.propertyGroup || matchedTenant.propertyName) : 'Stratford Court Apartments';
+                      const addr = matchedTenant && matchedTenant.address !== 'Loading Address...' ? matchedTenant.address : 'Suva, Fiji';
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
+                          <div>Type: <strong style={{ color: 'var(--text-primary)' }}>{ticket.category || 'Maintenance'}</strong></div>
+                          <div>Property: <strong style={{ color: 'var(--text-primary)' }}>{propName}</strong></div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Address: {addr}</div>
+                        </div>
+                      );
+                    })()}
                     
                     {/* Metadata requested */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, fontSize: 9 }}>

@@ -7,20 +7,20 @@
   --bg-primary: #f8fafc;
   --bg-secondary: #ffffff;
   --bg-tertiary: #f1f5f9;
-  --bg-accent-alpha: rgba(16, 185, 129, 0.1);
+  --bg-accent-alpha: rgba(6, 95, 70, 0.1);
   --border-color: #e2e8f0;
-  --border-focus: #10b981;
+  --border-focus: #065f46;
   
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #94a3b8;
   
-  --brand-color: #10b981; /* Premium Emerald Green */
-  --brand-hover: #059669;
+  --brand-color: #065f46; /* Premium Dark Green */
+  --brand-hover: #047857;
   
   /* Status Colors */
-  --color-success: #10b981; /* Neon-Green */
-  --color-success-bg: rgba(16, 185, 129, 0.1);
+  --color-success: #065f46; /* Dark Green */
+  --color-success-bg: rgba(6, 95, 70, 0.1);
   --color-warning: #f59e0b; /* Amber */
   --color-warning-bg: rgba(245, 158, 11, 0.1);
   --color-danger: #ef4444; /* Coral Red */

@@ -337,8 +337,11 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
     setSelectedUnitId(null);
   };
 
+  const uniqueTypes = Array.from(new Set(properties.map(p => p.land_and_building_type || p.type).filter(Boolean)));
+
   const filteredProperties = properties.filter(prop => {
-    const matchesFilter = filterType === 'all' || prop.type === filterType;
+    const propType = prop.land_and_building_type || prop.type;
+    const matchesFilter = filterType === 'all' || propType === filterType || prop.type === filterType;
     const matchesSearch = prop.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           prop.address.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesFilter && matchesSearch;
@@ -424,9 +427,9 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
             style={{ width: 160 }}
           >
             <option value="all">All Types</option>
-            <option value="residential">Residential</option>
-            <option value="commercial">Commercial</option>
-            <option value="mall">Mall Space</option>
+            {uniqueTypes.map(t => (
+              <option key={t} value={t}>{t}</option>
+            ))}
           </select>
         </div>
 
@@ -578,6 +581,10 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                       <span>Water reading:</span>
                       <strong style={{ color: 'var(--color-success)' }}>{details.water_reading || 'Active'}</strong>
                     </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Unit Ownership:</span>
+                      <strong style={{ color: 'var(--text-primary)' }}>{details.unit_owner || details.owner || 'N/A'}</strong>
+                    </div>
                     {Object.keys(details).filter(key => {
                       const keysToHide = [
                         'rent', 'area', 'power_reading', 'water_reading', 'status',
@@ -601,7 +608,9 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                         'modified_by', 'docstatus', 'idx', 'naming_series', 'item_group', 'item_name', 'description',
                         'disabled', 'allow_alternative_item', 'is_stock_item', 'has_variants', 'opening_stock',
                         'standard_rate', 'is_fixed_asset', 'auto_create_assets', 'is_grouped_asset', 'asset_category',
-                        'asset_naming_series', 'over_delivery_receipt_allowance', 'over_billing_allowance', 'image'
+                        'asset_naming_series', 'over_delivery_receipt_allowance', 'over_billing_allowance', 'image',
+                        'item_code', 'stock_uom', 'average', 'total_floor', 'total_bundle', 'category', 'property_owned_by',
+                        'bundle_price', 'total_service_price', 'item_code/stock_uom', 'unit_owner'
                       ];
                       return !keysToHide.includes(key.toLowerCase());
                     }).map(key => (
@@ -746,7 +755,28 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                       <span style={{ color: 'var(--text-muted)' }}>Lease Expiry:</span>
                       <span style={{ fontWeight: 600 }}>{p.lease_end_date || 'N/A'}</span>
                     </div>
-                    {Object.keys(p).filter(key => !['id', 'name', 'type', 'land_and_building_type', 'address', 'land_description', 'lease_end_date', 'rent', 'area', 'unitsCount', 'listedOnline', 'occupancy'].includes(key)).map(key => (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Property Owner:</span>
+                      <span style={{ fontWeight: 600 }}>{p.property_owner || p.owner || 'N/A'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Occupied Units:</span>
+                      <span style={{ fontWeight: 600, color: 'var(--color-danger)' }}>
+                        {propertyUnits.filter(u => (u.status || '').toLowerCase() === 'occupied').length}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Vacant Units:</span>
+                      <span style={{ fontWeight: 600, color: 'var(--color-success)' }}>
+                        {propertyUnits.filter(u => (u.status || '').toLowerCase() !== 'occupied').length}
+                      </span>
+                    </div>
+                    {Object.keys(p).filter(key => ![
+                      'id', 'name', 'type', 'land_and_building_type', 'address', 'land_description', 
+                      'lease_end_date', 'rent', 'area', 'unitsCount', 'listedOnline', 'occupancy',
+                      'created_by', 'modified', 'docstatus', 'doctype', 'gallery', 'image', 'owner',
+                      'creation', 'modified_by', 'property_owner', 'internal', 'external'
+                    ].includes(key.toLowerCase())).map(key => (
                       <div key={key} style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: 'var(--text-muted)', textTransform: 'capitalize' }}>{key.replace(/_/g, ' ')}:</span>
                         <span style={{ fontWeight: 600 }}>{String(p[key])}</span>

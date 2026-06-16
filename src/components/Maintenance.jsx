@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Hammer, User, Clock, CheckCircle, AlertTriangle, Plus, X, Calendar as CalendarIcon, List, BarChart3, ClipboardList, Building } from 'lucide-react';
+import { Hammer, User, Clock, CheckCircle, AlertTriangle, Plus, X, Calendar as CalendarIcon, List, BarChart3, ClipboardList, Building, Search } from 'lucide-react';
 
 export default function Maintenance({ 
   schedules = [], 
@@ -20,6 +20,17 @@ export default function Maintenance({
   const [showModal, setShowModal] = useState(false);
   const [activeSection, setActiveSection] = useState('schedule'); // 'schedule' or 'visit'
   const [viewMode, setViewMode] = useState('calendar'); // 'calendar' or 'list' for schedule section
+  const [maintenanceSearch, setMaintenanceSearch] = useState('');
+
+  const getPropertyByUnit = (unitId) => {
+    const tenant = tenants.find(t => t.unitSpec === unitId || t.id === unitId || t.name === unitId);
+    if (tenant) {
+      return tenant.propertyGroup || tenant.propertyName;
+    }
+    const prop = properties.find(p => p.id === unitId || p.name === unitId);
+    if (prop) return prop.name;
+    return 'N/A';
+  };
   
   // Schedule selected item state
   const [selectedSchedule, setSelectedSchedule] = useState(null);
@@ -105,10 +116,22 @@ export default function Maintenance({
   };
 
   // Pagination lists
-  const currentSchedulesList = schedules.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const filteredSchedules = schedules.filter(sch => {
+    const term = maintenanceSearch.toLowerCase();
+    const firstItemCode = sch.items && sch.items.length > 0 ? sch.items[0].item_code : '';
+    const propName = getPropertyByUnit(firstItemCode) || '';
+    return (
+      sch.name.toLowerCase().includes(term) ||
+      (sch.customer_name || sch.customer || '').toLowerCase().includes(term) ||
+      (sch.custom_assigned_team || '').toLowerCase().includes(term) ||
+      propName.toLowerCase().includes(term)
+    );
+  });
+
+  const currentSchedulesList = filteredSchedules.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const currentVisitsList = visits.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const totalPages = Math.ceil(
-    (activeSection === 'schedule' ? schedules.length : visits.length) / itemsPerPage
+    (activeSection === 'schedule' ? filteredSchedules.length : visits.length) / itemsPerPage
   );
 
   const renderPaginationControls = (totalItems) => {
@@ -310,7 +333,7 @@ export default function Maintenance({
       {/* Header section with view toggle */}
       <div className="view-header" style={{ marginBottom: 20 }}>
         <div>
-          <h1 className="view-title">Maintenance & Facility Operations</h1>
+          <h1 className="view-title">Maintenance Ops & Facility management</h1>
           <p className="view-subtitle">Roster preventative maintenance visits and manage visit logs.</p>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -344,8 +367,8 @@ export default function Maintenance({
       {activeSection === 'schedule' && (
         <div>
           {/* Subheader controls */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ fontSize: 13, fontWeight: 600 }}>Schedule View Mode:</span>
               <button 
                 className={`btn btn-sm ${viewMode === 'calendar' ? 'btn-primary' : 'btn-secondary'}`}
@@ -368,6 +391,18 @@ export default function Maintenance({
               >
                 <ClipboardList size={12} style={{ marginRight: 4 }} /> Kanban
               </button>
+
+              <div style={{ position: 'relative', width: 220, marginLeft: 10 }}>
+                <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input 
+                  type="text" 
+                  placeholder="Search schedules..." 
+                  value={maintenanceSearch}
+                  onChange={(e) => setMaintenanceSearch(e.target.value)}
+                  className="form-input"
+                  style={{ paddingLeft: 30, paddingRight: 10, paddingTop: 4, paddingBottom: 4, fontSize: 12 }}
+                />
+              </div>
             </div>
             
             {viewMode === 'calendar' && (
@@ -400,7 +435,8 @@ export default function Maintenance({
                           <th>Schedule ID</th>
                           <th>Customer Name</th>
                           <th>Schedule Date</th>
-                          <th>Items Count</th>
+                          <th>Property Group</th>
+                          <th>Assigned Dept</th>
                           <th>Status</th>
                         </tr>
                       </thead>
@@ -417,7 +453,11 @@ export default function Maintenance({
                             <td style={{ fontWeight: 600, color: 'var(--brand-color)' }}>{sch.name}</td>
                             <td>{sch.customer_name || sch.customer}</td>
                             <td>{sch.transaction_date} {sch.transaction_time || '10:00 AM'}</td>
-                            <td>{sch.items?.length || 0} items</td>
+                            <td>{(() => {
+                              const firstItemCode = sch.items && sch.items.length > 0 ? sch.items[0].item_code : '';
+                              return getPropertyByUnit(firstItemCode) || sch.custom_property || 'N/A';
+                            })()}</td>
+                            <td>{sch.custom_assigned_team || 'Unassigned'}</td>
                             <td>
                               <span className={`badge ${sch.status === 'Submitted' ? 'badge-success' : 'badge-warning'}`}>
                                 {sch.status || 'Draft'}
@@ -428,7 +468,7 @@ export default function Maintenance({
                       </tbody>
                     </table>
                   </div>
-                  {renderPaginationControls(schedules.length)}
+                  {renderPaginationControls(filteredSchedules.length)}
                 </div>
               ) : viewMode === 'kanban' ? (
                 /* KANBAN BOARD VIEW */
@@ -468,7 +508,7 @@ export default function Maintenance({
                       >
                         {/* Column Header */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid var(--border-color)', paddingBottom: 8 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', letterSpacing: '0.5px' }}>{status}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '0.5px' }}>{status}</span>
                           <span className="badge badge-secondary" style={{ fontSize: 10, padding: '2px 6px', background: 'var(--bg-accent-alpha)', color: 'var(--brand-color)' }}>{statusSchedules.length}</span>
                         </div>
                         
@@ -516,7 +556,7 @@ export default function Maintenance({
                               >
                                 {/* ID Header */}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--brand-color)', background: 'rgba(255, 221, 0, 0.1)', padding: '2px 6px', borderRadius: 4 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--brand-color)', background: 'rgba(6, 95, 70, 0.1)', padding: '2px 6px', borderRadius: 4 }}>
                                     {sch.name}
                                   </span>
                                   <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>
@@ -525,7 +565,7 @@ export default function Maintenance({
                                 </div>
 
                                 {/* Subject */}
-                                <div style={{ fontSize: 12, fontWeight: 600, color: '#ffffff', display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
                                   {sch.items && sch.items.length > 0 
                                     ? sch.items.map(item => item.item_code).join(', ') 
                                     : 'General Maintenance'}
@@ -552,14 +592,14 @@ export default function Maintenance({
 
                                 {/* Unit */}
                                 <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginLeft: 18 }}>
-                                  Unit: <strong style={{ color: '#ffffff' }}>{unit}</strong>
+                                  Unit: <strong style={{ color: 'var(--text-primary)' }}>{unit}</strong>
                                 </div>
 
                                 {/* Assigned Resource info */}
                                 {(team || resource || assignedList.length > 0) && (
-                                  <div style={{ fontSize: 10, background: 'rgba(255, 255, 255, 0.03)', padding: 6, borderRadius: 4, border: '1px solid var(--border-color)', marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                  <div style={{ fontSize: 10, background: 'var(--bg-tertiary)', padding: 6, borderRadius: 4, border: '1px solid var(--border-color)', marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
                                     {team && <div>Team: <strong style={{ color: 'var(--brand-color)' }}>{team}</strong></div>}
-                                    {resource && <div>Staff: <strong style={{ color: '#ffffff' }}>{resource}</strong></div>}
+                                    {resource && <div>Staff: <strong style={{ color: 'var(--text-primary)' }}>{resource}</strong></div>}
                                   </div>
                                 )}
                               </div>
@@ -714,8 +754,8 @@ export default function Maintenance({
                 </div>
 
                 <div>
-                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 2 }}>Doc status / Schedule Date & Time</span>
-                  <strong style={{ fontSize: 12 }}>{selectedSchedule.transaction_date} {selectedSchedule.transaction_time || '10:00 AM'} ({selectedSchedule.status || 'Draft'})</strong>
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 2 }}>Schedule Date & Time</span>
+                  <strong style={{ fontSize: 12 }}>{selectedSchedule.transaction_date} {selectedSchedule.transaction_time || '10:00 AM'}</strong>
                 </div>
 
                 {/* Team & Resource Assignment */}
@@ -869,21 +909,6 @@ export default function Maintenance({
                   </button>
                 </div>
 
-                {/* Schedule details table */}
-                <div style={{ background: 'var(--bg-tertiary)', padding: 12, borderRadius: 6, border: '1px solid var(--border-color)' }}>
-                  <h4 style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>Schedule Roster Rows</h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {(selectedSchedule.schedules || []).map((row, i) => (
-                      <div key={row.name || i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, paddingBottom: 6, borderBottom: '1px solid var(--border-color)' }}>
-                        <div>
-                          <strong>{row.item_code}</strong>
-                          <span style={{ display: 'block', fontSize: 9, color: 'var(--text-secondary)' }}>Date: {row.scheduled_date}</span>
-                        </div>
-                        <span style={{ fontSize: 9 }}>{getStatusBadge(row.completion_status)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
 
                 {/* Items child table details */}
                 <div style={{ background: 'var(--bg-tertiary)', padding: 12, borderRadius: 6, border: '1px solid var(--border-color)' }}>
