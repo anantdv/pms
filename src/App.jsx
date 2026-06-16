@@ -1106,6 +1106,30 @@ export default function App() {
     }
   };
 
+  const handleUpdateScheduleStatus = async (scheduleName, nextStatus) => {
+    setSchedules(prev => prev.map(sch => {
+      if (sch.name === scheduleName) {
+        return { ...sch, status: nextStatus };
+      }
+      return sch;
+    }));
+
+    if (ERPNEXT_CONFIG && !scheduleName.startsWith('SCH-')) {
+      try {
+        await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule/${scheduleName}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ status: nextStatus })
+        });
+      } catch (err) {
+        console.warn('Failed to update ERPNext Maintenance Schedule status:', err);
+      }
+    }
+  };
+
   const handleUpdateVisitStatus = async (visitName, nextStatus) => {
     setVisits(prev => prev.map(v => {
       if (v.name === visitName) {
@@ -1955,6 +1979,7 @@ export default function App() {
             clearPreSelectedProperty={() => setPreSelectedProperty(null)}
             onCreateSchedule={handleCreateMaintenanceSchedule} 
             onUpdateScheduleDate={handleUpdateScheduleDate} 
+            onUpdateScheduleStatus={handleUpdateScheduleStatus}
             onUpdateVisitStatus={handleUpdateVisitStatus} 
             erpnextConfig={ERPNEXT_CONFIG} 
             employees={employees}

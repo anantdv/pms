@@ -10,6 +10,7 @@ export default function Maintenance({
   clearPreSelectedProperty, 
   onCreateSchedule, 
   onUpdateScheduleDate, 
+  onUpdateScheduleStatus,
   onUpdateVisitStatus, 
   erpnextConfig,
   employees = [],
@@ -192,6 +193,18 @@ export default function Maintenance({
     }
   };
 
+  const handleKanbanDragStart = (e, scheduleName) => {
+    e.dataTransfer.setData('text/plain', scheduleName);
+  };
+
+  const handleKanbanDrop = (e, status) => {
+    e.preventDefault();
+    const scheduleName = e.dataTransfer.getData('text/plain');
+    if (scheduleName && onUpdateScheduleStatus) {
+      onUpdateScheduleStatus(scheduleName, status);
+    }
+  };
+
   // Modal Child Item Rows handlers
   const handleAddItemRow = () => {
     setFormItems([...formItems, { item_code: '31AD', start_date: '2026-06-11', end_date: '2026-07-11', periodicity: 'Weekly', description: '' }]);
@@ -211,6 +224,46 @@ export default function Maintenance({
     }));
   };
 
+  const generateSchedulesList = (items) => {
+    const schedulesList = [];
+    items.forEach(item => {
+      const start = new Date(item.start_date);
+      const end = new Date(item.end_date);
+      let curr = new Date(start);
+      
+      let iterations = 0;
+      while (curr <= end && iterations < 500) {
+        iterations++;
+        const yyyy = curr.getFullYear();
+        const mm = String(curr.getMonth() + 1).padStart(2, '0');
+        const dd = String(curr.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+        
+        schedulesList.push({
+          item_code: item.item_code,
+          scheduled_date: dateStr,
+          completion_status: 'Pending',
+          description: item.description || ''
+        });
+        
+        if (item.periodicity === 'Weekly') {
+          curr.setDate(curr.getDate() + 7);
+        } else if (item.periodicity === 'Monthly') {
+          curr.setMonth(curr.getMonth() + 1);
+        } else if (item.periodicity === 'Quarterly') {
+          curr.setMonth(curr.getMonth() + 3);
+        } else if (item.periodicity === 'Half Yearly') {
+          curr.setMonth(curr.getMonth() + 6);
+        } else if (item.periodicity === 'Yearly') {
+          curr.setFullYear(curr.getFullYear() + 1);
+        } else {
+          curr.setDate(curr.getDate() + 30);
+        }
+      }
+    });
+    return schedulesList;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!customer) return;
@@ -228,7 +281,8 @@ export default function Maintenance({
       custom_property: selectedPropertyId,
       propertyId: selectedPropertyId,
       propertyName: matchedProp ? matchedProp.name : '',
-      items: formItems
+      items: formItems,
+      schedules: generateSchedulesList(formItems)
     };
 
     setSubmittingSchedule(true);
@@ -307,6 +361,13 @@ export default function Maintenance({
               >
                 <List size={12} style={{ marginRight: 4 }} /> Document List
               </button>
+              <button 
+                className={`btn btn-sm ${viewMode === 'kanban' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setViewMode('kanban')}
+                style={{ padding: '4px 10px', fontSize: 11 }}
+              >
+                <ClipboardList size={12} style={{ marginRight: 4 }} /> Kanban
+              </button>
             </div>
             
             {viewMode === 'calendar' && (
@@ -368,6 +429,151 @@ export default function Maintenance({
                     </table>
                   </div>
                   {renderPaginationControls(schedules.length)}
+                </div>
+              ) : viewMode === 'kanban' ? (
+                /* KANBAN BOARD VIEW */
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(4, 1fr)', 
+                  gap: 16, 
+                  padding: 16, 
+                  overflowX: 'auto', 
+                  minHeight: 500, 
+                  background: 'var(--bg-secondary)',
+                  borderRadius: 'var(--radius-md)'
+                }}>
+                  {['Draft', 'Submitted', 'Completed', 'Closed'].map(status => {
+                    const statusSchedules = schedules.filter(sch => {
+                      const s = sch.status || 'Draft';
+                      if (status === 'Draft') return s === 'Draft' || !s;
+                      return s.toLowerCase() === status.toLowerCase();
+                    });
+                    
+                    return (
+                      <div 
+                        key={status}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => handleKanbanDrop(e, status)}
+                        style={{
+                          background: 'var(--bg-tertiary)',
+                          borderRadius: 'var(--radius-md)',
+                          padding: 12,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 12,
+                          border: '1px solid var(--border-color)',
+                          minWidth: 220,
+                          boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.2)'
+                        }}
+                      >
+                        {/* Column Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid var(--border-color)', paddingBottom: 8 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', letterSpacing: '0.5px' }}>{status}</span>
+                          <span className="badge badge-secondary" style={{ fontSize: 10, padding: '2px 6px', background: 'var(--bg-accent-alpha)', color: 'var(--brand-color)' }}>{statusSchedules.length}</span>
+                        </div>
+                        
+                        {/* Cards List */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto', flex: 1, maxHeight: '65vh', paddingBottom: 10 }}>
+                          {statusSchedules.map(sch => {
+                            const prop = properties.find(p => p.id === sch.custom_property || p.id === sch.propertyId);
+                            const propertyGroupName = prop ? prop.name : (sch.propertyName || sch.custom_property || 'N/A');
+                            const propertyAddress = prop ? prop.address : 'N/A';
+                            
+                            const tenant = tenants.find(t => t.id === sch.customer || t.name === sch.customer_name);
+                            const unit = tenant ? tenant.unitSpec : 'N/A';
+                            
+                            const assignedList = sch._assign ? (typeof sch._assign === 'string' ? JSON.parse(sch._assign) : sch._assign) : [];
+                            const team = sch.custom_assigned_team || '';
+                            const resource = sch.custom_assigned_resource || '';
+
+                            return (
+                              <div
+                                key={sch.name}
+                                draggable="true"
+                                onDragStart={(e) => handleKanbanDragStart(e, sch.name)}
+                                onClick={() => { setSelectedSchedule(sch); setSelectedVisit(null); }}
+                                style={{
+                                  background: 'var(--bg-card)',
+                                  border: selectedSchedule?.name === sch.name ? '2.5px solid var(--brand-color)' : '1px solid var(--border-color)',
+                                  borderRadius: 'var(--radius-sm)',
+                                  padding: 12,
+                                  cursor: 'grab',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 8,
+                                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                                  boxShadow: 'var(--shadow-sm)',
+                                  position: 'relative'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.transform = 'translateY(-2px)';
+                                  e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.transform = 'translateY(0)';
+                                  e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                                }}
+                              >
+                                {/* ID Header */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--brand-color)', background: 'rgba(255, 221, 0, 0.1)', padding: '2px 6px', borderRadius: 4 }}>
+                                    {sch.name}
+                                  </span>
+                                  <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>
+                                    {sch.transaction_date}
+                                  </span>
+                                </div>
+
+                                {/* Subject */}
+                                <div style={{ fontSize: 12, fontWeight: 600, color: '#ffffff', display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                                  {sch.items && sch.items.length > 0 
+                                    ? sch.items.map(item => item.item_code).join(', ') 
+                                    : 'General Maintenance'}
+                                </div>
+
+                                {/* Tenant */}
+                                <div style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
+                                  <User size={12} style={{ color: 'var(--brand-color)', flexShrink: 0 }} />
+                                  <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                    Tenant: <strong>{sch.customer_name || sch.customer || 'N/A'}</strong>
+                                  </span>
+                                </div>
+
+                                {/* Property Group & Address */}
+                                <div style={{ fontSize: 11, display: 'flex', flexDirection: 'column', gap: 2, borderTop: '1px solid var(--border-color)', paddingTop: 6 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
+                                    <Building size={12} style={{ color: 'var(--brand-color)', flexShrink: 0 }} />
+                                    <span style={{ fontWeight: 600, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{propertyGroupName}</span>
+                                  </div>
+                                  <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 18, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                    {propertyAddress}
+                                  </span>
+                                </div>
+
+                                {/* Unit */}
+                                <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginLeft: 18 }}>
+                                  Unit: <strong style={{ color: '#ffffff' }}>{unit}</strong>
+                                </div>
+
+                                {/* Assigned Resource info */}
+                                {(team || resource || assignedList.length > 0) && (
+                                  <div style={{ fontSize: 10, background: 'rgba(255, 255, 255, 0.03)', padding: 6, borderRadius: 4, border: '1px solid var(--border-color)', marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                    {team && <div>Team: <strong style={{ color: 'var(--brand-color)' }}>{team}</strong></div>}
+                                    {resource && <div>Staff: <strong style={{ color: '#ffffff' }}>{resource}</strong></div>}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {statusSchedules.length === 0 && (
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '32px 0', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
+                              No items
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 /* CALENDAR RENDER MODE */
