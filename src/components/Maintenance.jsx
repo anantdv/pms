@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Hammer, User, Clock, CheckCircle, AlertTriangle, Plus, X, Calendar as CalendarIcon, List, BarChart3, ClipboardList, Building, Search, Activity, Settings, DollarSign, PenTool, Archive, Check, ArrowRight, UserCheck, ShieldCheck, Mail, Phone, MapPin } from 'lucide-react';
+import { Hammer, User, Clock, CheckCircle, AlertTriangle, Plus, X, Calendar as CalendarIcon, List, BarChart3, ClipboardList, Building, Search, Activity, Settings, DollarSign, PenTool, Archive, Check, ArrowRight, UserCheck, ShieldCheck, Mail, Phone, MapPin, Award } from 'lucide-react';
 
 export default function Maintenance({ 
   schedules = [], 

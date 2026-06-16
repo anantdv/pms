@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Send, CheckCircle2, MessageSquare, AlertCircle, BarChart2, ShieldAlert, Clock, User, Sparkles, Mic, MicOff, RefreshCw, X, HelpCircle, Check, Play, Pencil, Settings, Paperclip, Activity, FileText, Bell, Phone, Mail, Award } from 'lucide-react';
+import { Send, CheckCircle2, MessageSquare, AlertCircle, BarChart2, ShieldAlert, Clock, User, Sparkles, Mic, MicOff, RefreshCw, X, HelpCircle, Check, Play, Pencil, Settings, Paperclip, Activity, FileText, Bell, Phone, Mail, Award, DollarSign } from 'lucide-react';
 
 const MOCK_ISSUE_LISTS = {
   "Utilities & Infrastructure Issues List": [
@@ -354,6 +354,34 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
   const currentItems = localTickets.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const totalPages = Math.ceil(localTickets.length / itemsPerPage);
 
+  const renderPaginationControls = (totalItems) => {
+    const pagesCount = Math.ceil(totalItems / itemsPerPage);
+    if (pagesCount <= 1) return null;
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, padding: '12px 16px', borderTop: '1px solid var(--border-color)' }}>
+        <button 
+          className="btn btn-secondary btn-sm" 
+          disabled={currentPage === 1}
+          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          style={{ padding: '4px 8px', fontSize: 11 }}
+        >
+          Previous
+        </button>
+        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+          Page {currentPage} of {pagesCount}
+        </span>
+        <button 
+          className="btn btn-secondary btn-sm" 
+          disabled={currentPage === pagesCount}
+          onClick={() => setCurrentPage(prev => Math.min(prev + 1, pagesCount))}
+          style={{ padding: '4px 8px', fontSize: 11 }}
+        >
+          Next
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className="view-header" style={{ flexWrap: 'wrap', gap: 16 }}>
@@ -460,7 +488,7 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
                 </div>
               </div>
               <div className="card-panel">
-                <h3 style={{ fontSize: 14, marginBottom: 12 }}>Your Assigned Tasks Schedule</h3>
+                <h3 style={{ fontSize: 14, marginBottom: 12 }}>Assigned Tasks</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {openTickets.map(t => (
                     <div key={t.id} onClick={() => handleLineClick(t.id)} style={{ padding: 14, background: 'var(--bg-tertiary)', borderLeft: '4px solid var(--brand-color)', borderRadius: 6, cursor: 'pointer' }}>
