@@ -1,6 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, User, Building, DollarSign, Plus, X, Search, Filter, Loader, Eye, RefreshCw, CheckCircle2 } from 'lucide-react';
 
+const getCsrfToken = () => {
+  if (typeof window !== 'undefined' && window.csrf_token) {
+    return window.csrf_token;
+  }
+  if (typeof window !== 'undefined' && window.frappe && window.frappe.csrf_token) {
+    return window.frappe.csrf_token;
+  }
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; csrf_token=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+  return '';
+};
+
 export default function Booking({ erpnextConfig }) {
   const [bookings, setBookings] = useState([]);
   const [selectedBookingId, setSelectedBookingId] = useState(null);
@@ -283,8 +296,9 @@ export default function Booking({ erpnextConfig }) {
           const res = await fetch(`${erpnextConfig.url}/api/method/erpnext.api.booking.create_booking`, {
             method: 'POST',
             credentials: 'include',
-      headers: {
-              'Content-Type': 'application/json'
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Frappe-CSRF-Token': getCsrfToken()
             },
             body: JSON.stringify(formData)
           });
@@ -300,8 +314,9 @@ export default function Booking({ erpnextConfig }) {
           const res = await fetch(`${erpnextConfig.url}/api/resource/Booking`, {
             method: 'POST',
             credentials: 'include',
-      headers: {
-              'Content-Type': 'application/json'
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Frappe-CSRF-Token': getCsrfToken()
             },
             body: JSON.stringify(formData)
           });

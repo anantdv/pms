@@ -33,6 +33,19 @@ import Reports from './components/Reports';
 import Quotation from './components/Quotation';
 import { ERPNEXT_CONFIG } from './config';
 
+const getCsrfToken = () => {
+  if (typeof window !== 'undefined' && window.csrf_token) {
+    return window.csrf_token;
+  }
+  if (typeof window !== 'undefined' && window.frappe && window.frappe.csrf_token) {
+    return window.frappe.csrf_token;
+  }
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; csrf_token=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+  return '';
+};
+
 // Sample INITIAL MOCK DATA
 const INITIAL_PROPERTIES = [
   { id: 'PROP-2041', name: 'Stratford Court Apartments', type: 'residential', land_and_building_type: 'residential', address: '12 Carpenters Road, London E15', unitsCount: 24, rent: 1850, area: 18000, listedOnline: true, occupancy: 85, land_description: 'Residential building with 24 premium apartments', lease_end_date: '2026-12-31' },
@@ -909,7 +922,8 @@ export default function App() {
           method: 'POST',
           credentials: 'include',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-Frappe-CSRF-Token': getCsrfToken()
           },
           body: JSON.stringify(payload)
         });
@@ -964,8 +978,9 @@ export default function App() {
       const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule`, {
         method: 'POST',
         credentials: 'include',
-      headers: {
-          'Content-Type': 'application/json'
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Frappe-CSRF-Token': getCsrfToken()
         },
         body: JSON.stringify(newSchedule)
       });
@@ -1027,8 +1042,9 @@ export default function App() {
         await fetch(`${ERPNEXT_CONFIG.url}/api/method/frappe.desk.form.assign_to.add`, {
           method: 'POST',
           credentials: 'include',
-      headers: {
-            'Content-Type': 'application/json'
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Frappe-CSRF-Token': getCsrfToken()
           },
           body: JSON.stringify({
             doctype: 'Maintenance Schedule',
@@ -1048,8 +1064,9 @@ export default function App() {
       const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Visit`, {
         method: 'POST',
         credentials: 'include',
-      headers: {
-          'Content-Type': 'application/json'
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Frappe-CSRF-Token': getCsrfToken()
         },
         body: JSON.stringify(newVisit)
       });
@@ -1114,8 +1131,9 @@ export default function App() {
         await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule/${parentName}`, {
           method: 'PUT',
           credentials: 'include',
-      headers: {
-            'Content-Type': 'application/json'
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Frappe-CSRF-Token': getCsrfToken()
           },
           body: JSON.stringify({ schedules: updatedScheduleDoc.schedules })
         });
@@ -1139,7 +1157,8 @@ export default function App() {
           method: 'PUT',
           credentials: 'include',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-Frappe-CSRF-Token': getCsrfToken()
           },
           body: JSON.stringify({ status: nextStatus })
         });
@@ -1170,8 +1189,9 @@ export default function App() {
         await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Visit/${visitName}`, {
           method: 'PUT',
           credentials: 'include',
-      headers: {
-            'Content-Type': 'application/json'
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Frappe-CSRF-Token': getCsrfToken()
           },
           body: JSON.stringify({ completion_status: erpStatus })
         });
@@ -1187,8 +1207,9 @@ export default function App() {
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Issue`, {
           method: 'POST',
           credentials: 'include',
-      headers: {
-            'Content-Type': 'application/json'
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Frappe-CSRF-Token': getCsrfToken()
           },
           body: JSON.stringify(newIssue)
         });
@@ -1255,8 +1276,9 @@ export default function App() {
         await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Sales%20Invoice/${invId}`, {
           method: 'PUT',
           credentials: 'include',
-      headers: {
-            'Content-Type': 'application/json'
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Frappe-CSRF-Token': getCsrfToken()
           },
           body: JSON.stringify({ status: 'Paid' })
         });
@@ -1283,8 +1305,9 @@ export default function App() {
         await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Communication`, {
           method: 'POST',
           credentials: 'include',
-      headers: {
-            'Content-Type': 'application/json'
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Frappe-CSRF-Token': getCsrfToken()
           },
           body: JSON.stringify({
             communication_type: 'Comment',
@@ -1323,8 +1346,9 @@ export default function App() {
         const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Employee`, {
           method: 'POST',
           credentials: 'include',
-      headers: {
-            'Content-Type': 'application/json'
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Frappe-CSRF-Token': getCsrfToken()
           },
           body: JSON.stringify(payload)
         });

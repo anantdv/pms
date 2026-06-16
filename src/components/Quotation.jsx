@@ -1,6 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Plus, X, Search, CheckCircle2, AlertCircle, Edit, Trash2, Calendar, User, Building, Trash, Printer, ArrowUpRight } from 'lucide-react';
 
+const getCsrfToken = () => {
+  if (typeof window !== 'undefined' && window.csrf_token) {
+    return window.csrf_token;
+  }
+  if (typeof window !== 'undefined' && window.frappe && window.frappe.csrf_token) {
+    return window.frappe.csrf_token;
+  }
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; csrf_token=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+  return '';
+};
+
 export default function Quotation({ erpnextConfig, properties = [] }) {
   const [quotations, setQuotations] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -358,8 +371,9 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
         const res = await fetch(`${erpnextConfig.url}/api/resource/Quotation`, {
           method: 'POST',
           credentials: 'include',
-      headers: {
-            'Content-Type': 'application/json'
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Frappe-CSRF-Token': getCsrfToken()
           },
           body: JSON.stringify(payload)
         });
@@ -503,8 +517,9 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
         const createRes = await fetch(`${erpnextConfig.url}/api/resource/Quotation`, {
           method: 'POST',
           credentials: 'include',
-      headers: {
-            'Content-Type': 'application/json'
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Frappe-CSRF-Token': getCsrfToken()
           },
           body: JSON.stringify(payload)
         });

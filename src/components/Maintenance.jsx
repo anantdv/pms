@@ -29,6 +29,11 @@ export default function Maintenance({
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [selectedTechnician, setSelectedTechnician] = useState(null);
 
+  // Calendar states
+  const [calendarYear, setCalendarYear] = useState(2026);
+  const [calendarMonth, setCalendarMonth] = useState(5); // June 2026
+  const [selectedDateStr, setSelectedDateStr] = useState('2026-06-17');
+
   // Reassignment states
   const [reassignWOId, setReassignWOId] = useState(null);
   const [reassignTech, setReassignTech] = useState('');
@@ -63,6 +68,7 @@ export default function Maintenance({
   const [woVendor, setWoVendor] = useState('');
   const [woEstCost, setWoEstCost] = useState(0);
   const [woDescription, setWoDescription] = useState('');
+  const [selectedPropertyId, setSelectedPropertyId] = useState('');
 
   // Consume parts form states
   const [consumeItemCode, setConsumeItemCode] = useState('');
@@ -480,7 +486,16 @@ export default function Maintenance({
             {viewMode === 'kanban' && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
                 {['Pending', 'In Progress', 'Completed'].map(status => {
-                  const statusSchedules = filteredSchedules.filter(s => (s.status || 'Pending') === status);
+                  const statusSchedules = filteredSchedules.filter(s => {
+                    const rawStatus = (s.status || '').toLowerCase();
+                    let norm = 'Pending';
+                    if (rawStatus === 'completed' || rawStatus === 'closed') {
+                      norm = 'Completed';
+                    } else if (rawStatus === 'in progress' || rawStatus === 'submitted') {
+                      norm = 'In Progress';
+                    }
+                    return norm === status;
+                  });
                   return (
                     <div 
                       key={status} 
@@ -501,7 +516,7 @@ export default function Maintenance({
                             style={{ background: 'var(--bg-secondary)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)', cursor: 'grab' }}
                           >
                             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand-color)' }}>{sch.name}</div>
-                            <div style={{ fontSize: 12, fontWeight: 600 }}>{sch.customer_name}</div>
+                            <div style={{ fontSize: 12, fontWeight: 600 }}>{sch.customer_name || sch.customer}</div>
                             <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Property: {getPropertyNameById(sch.custom_property)}</div>
                             <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Type: {sch.type}</div>
                           </div>
@@ -514,23 +529,155 @@ export default function Maintenance({
             )}
 
             {viewMode === 'calendar' && (
-              <div className="card-panel" style={{ padding: 20 }}>
-                <h3 style={{ fontSize: 14, marginBottom: 12 }}>Calendar Schedule Agenda View</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {filteredSchedules.map(sch => (
-                    <div key={sch.name} style={{ display: 'flex', gap: 12, padding: 10, background: 'var(--bg-tertiary)', borderRadius: 6 }}>
-                      <div style={{ background: 'var(--brand-color)', color: '#fff', padding: '6px 12px', borderRadius: 4, textAlign: 'center', fontWeight: 600 }}>
-                        {sch.transaction_date.split('-')[2] || '16'}
-                      </div>
-                      <div>
-                        <strong>{sch.name} - {sch.customer_name}</strong>
-                        <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Type: {sch.type} | Property: {getPropertyNameById(sch.custom_property)}</div>
-                      </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}>
+                <div className="card-panel" style={{ padding: 20 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <h3 style={{ fontSize: 14, margin: 0 }}>
+                      {new Date(calendarYear, calendarMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                    </h3>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button 
+                        className="btn btn-secondary btn-xs"
+                        onClick={() => {
+                          if (calendarMonth === 0) {
+                            setCalendarMonth(11);
+                            setCalendarYear(y => y - 1);
+                          } else {
+                            setCalendarMonth(m => m - 1);
+                          }
+                        }}
+                      >
+                        Prev
+                      </button>
+                      <button 
+                        className="btn btn-secondary btn-xs"
+                        onClick={() => {
+                          if (calendarMonth === 11) {
+                            setCalendarMonth(0);
+                            setCalendarYear(y => y + 1);
+                          } else {
+                            setCalendarMonth(m => m + 1);
+                          }
+                        }}
+                      >
+                        Next
+                      </button>
                     </div>
-                  ))}
+                  </div>
+
+                  {/* Days of week header */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, textAlign: 'center', fontWeight: 600, fontSize: 11, marginBottom: 8, color: 'var(--text-secondary)' }}>
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d}>{d}</div>)}
+                  </div>
+
+                  {/* Calendar cells grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+                    {(() => {
+                      const firstDay = new Date(calendarYear, calendarMonth, 1).getDay();
+                      const totalDays = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+                      const cells = [];
+                      
+                      // Empty cells before first day
+                      for (let i = 0; i < firstDay; i++) {
+                        cells.push(<div key={`empty-${i}`} style={{ height: 50, border: '1px solid transparent' }}></div>);
+                      }
+
+                      // Month days
+                      for (let day = 1; day <= totalDays; day++) {
+                        const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                        const daySchedules = filteredSchedules.filter(s => s.transaction_date === dateStr);
+                        const isSelected = selectedDateStr === dateStr;
+                        const isToday = calendarYear === 2026 && calendarMonth === 5 && day === 17; // June 17, 2026
+
+                        cells.push(
+                          <div 
+                            key={`day-${day}`}
+                            onClick={() => setSelectedDateStr(dateStr)}
+                            style={{ 
+                              height: 50, 
+                              border: `1px solid ${isSelected ? 'var(--brand-color)' : 'var(--border-color)'}`,
+                              borderRadius: 4,
+                              background: isSelected ? 'var(--bg-accent-alpha)' : isToday ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                              padding: 4,
+                              cursor: 'pointer',
+                              position: 'relative',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'space-between',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <span style={{ fontSize: 10, fontWeight: isToday || isSelected ? 700 : 400 }}>{day}</span>
+                            {daySchedules.length > 0 && (
+                              <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                                {daySchedules.map((s, idx) => (
+                                  <span 
+                                    key={s.name} 
+                                    style={{ 
+                                      width: 6, 
+                                      height: 6, 
+                                      borderRadius: '50%', 
+                                      background: s.status === 'Completed' ? '#10b981' : '#f59e0b',
+                                      display: 'inline-block' 
+                                    }}
+                                    title={`${s.name}: ${s.type}`}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      return cells;
+                    })()}
+                  </div>
+                </div>
+
+                {/* Selected day schedules details */}
+                <div className="card-panel" style={{ padding: 16 }}>
+                  <h4 style={{ fontSize: 12, marginBottom: 10, color: 'var(--text-secondary)' }}>
+                    Schedules for: <strong>{selectedDateStr}</strong>
+                  </h4>
+                  {(() => {
+                    const daySchedules = filteredSchedules.filter(s => s.transaction_date === selectedDateStr);
+                    if (daySchedules.length === 0) {
+                      return <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>No schedules planned for this day.</div>;
+                    }
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {daySchedules.map(sch => (
+                          <div 
+                            key={sch.name} 
+                            onClick={() => setSelectedSchedule(sch)}
+                            style={{ 
+                              padding: 10, 
+                              background: 'var(--bg-tertiary)', 
+                              borderLeft: '4px solid var(--brand-color)', 
+                              borderRadius: 4, 
+                              cursor: 'pointer',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
+                            }}
+                          >
+                            <div>
+                              <strong style={{ fontSize: 12 }}>{sch.name} ({sch.type})</strong>
+                              <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
+                                Tenant: {sch.customer_name || sch.customer} | Prop: {getPropertyNameById(sch.custom_property)}
+                              </div>
+                            </div>
+                            <span className={`badge ${sch.status === 'Completed' ? 'badge-success' : 'badge-warning'}`}>
+                              {sch.status || 'Pending'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}
+
 
             {selectedSchedule && (
               <div className="card-panel" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
