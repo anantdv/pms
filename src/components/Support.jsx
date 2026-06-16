@@ -31,10 +31,11 @@ const MOCK_ISSUE_LISTS = {
 };
 
 export default function Support({ tickets, onAddMessage, onCreateIssue, tenants = [], erpnextConfig }) {
-  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'console', 'tinni'
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'issue', 'tinni'
   const [dashboardRole, setDashboardRole] = useState('manager'); // 'tenant', 'technician', 'manager', 'admin'
   const [selectedTicketId, setSelectedTicketId] = useState(tickets[0]?.id || null);
   const [commTab, setCommTab] = useState('public'); // 'public', 'internal', 'emails', 'history'
+  const [issueViewMode, setIssueViewMode] = useState('list'); // 'list', 'kanban'
   
   // Create Issue Modal Form States
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -173,7 +174,6 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
   // Convert Ticket to Maintenance Schedule / Work Order
   const handleConvertToMaintenance = (ticket) => {
     alert(`Converting Ticket ${ticket.id} into a Maintenance Request & generating Work Order...`);
-    // Mock update: change status to "Assigned"
     setLocalTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, status: 'assigned', lastUpdated: 'Just now' } : t));
   };
 
@@ -208,12 +208,27 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
     }
   };
 
-  // Toggle Close status
-  const handleToggleClose = async (ticketId) => {
-    let ticket = localTickets.find(t => t.id === ticketId);
-    if (!ticket) return;
-    const nextStatus = ticket.status === 'closed' ? 'open' : 'closed';
-    handleStatusChange(ticketId, nextStatus);
+  // Drag & drop logic for Issue Kanban
+  const handleDragStart = (e, ticketId) => {
+    e.dataTransfer.setData('text/plain', ticketId);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e, targetStatus) => {
+    e.preventDefault();
+    const ticketId = e.dataTransfer.getData('text/plain');
+    if (ticketId) {
+      handleStatusChange(ticketId, targetStatus.toLowerCase());
+    }
+  };
+
+  // Click handler to route dashboard lines to issue details
+  const handleLineClick = (ticketId) => {
+    setSelectedTicketId(ticketId);
+    setActiveTab('issue');
   };
 
   // Add Comment/Response message
@@ -352,8 +367,8 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
           <button className={`btn btn-sm ${activeTab === 'dashboard' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('dashboard')}>
             <BarChart2 size={13} style={{ marginRight: 4 }} /> Dashboard
           </button>
-          <button className={`btn btn-sm ${activeTab === 'console' ? 'btn-primary' : 'btn-secondary'}`} style={{ marginLeft: 4 }} onClick={() => setActiveTab('console')}>
-            <MessageSquare size={13} style={{ marginRight: 4 }} /> Console ({openTickets.length})
+          <button className={`btn btn-sm ${activeTab === 'issue' ? 'btn-primary' : 'btn-secondary'}`} style={{ marginLeft: 4 }} onClick={() => setActiveTab('issue')}>
+            <MessageSquare size={13} style={{ marginRight: 4 }} /> Issue ({openTickets.length})
           </button>
           <button className={`btn btn-sm ${activeTab === 'tinni' ? 'btn-primary' : 'btn-secondary'}`} style={{ marginLeft: 4 }} onClick={() => setActiveTab('tinni')}>
             <Sparkles size={13} style={{ marginRight: 4, color: 'var(--brand-color)' }} /> Copilot Tinni
@@ -365,21 +380,20 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
       {activeTab === 'dashboard' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           
-          {/* Role selector panel */}
-          <div className="card-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', flexWrap: 'wrap', gap: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>Switch Role Dashboard Perspective:</span>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {['tenant', 'technician', 'manager', 'admin'].map(role => (
-                <button 
-                  key={role} 
-                  className={`btn btn-sm ${dashboardRole === role ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ textTransform: 'capitalize' }}
-                  onClick={() => setDashboardRole(role)}
-                >
-                  {role} View
-                </button>
-              ))}
-            </div>
+          {/* Dashboard Switcher */}
+          <div className="card-panel" style={{ display: 'flex', justifyContent: 'center', padding: '10px', gap: 8, flexWrap: 'wrap' }}>
+            <button className={`btn btn-sm ${dashboardRole === 'tenant' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setDashboardRole('tenant')}>
+              Maintenance Request
+            </button>
+            <button className={`btn btn-sm ${dashboardRole === 'technician' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setDashboardRole('technician')}>
+              Tasks Schedule
+            </button>
+            <button className={`btn btn-sm ${dashboardRole === 'manager' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setDashboardRole('manager')}>
+              SLA
+            </button>
+            <button className={`btn btn-sm ${dashboardRole === 'admin' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setDashboardRole('admin')}>
+              Admin
+            </button>
           </div>
 
           {/* Render stats and widgets dynamically based on role */}
@@ -414,7 +428,7 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
                     </thead>
                     <tbody>
                       {openTickets.map(t => (
-                        <tr key={t.id}>
+                        <tr key={t.id} onClick={() => handleLineClick(t.id)} style={{ cursor: 'pointer' }}>
                           <td>{t.id}</td>
                           <td>{t.subject}</td>
                           <td><span className="badge badge-warning">{t.status}</span></td>
@@ -448,13 +462,15 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
               <div className="card-panel">
                 <h3 style={{ fontSize: 14, marginBottom: 12 }}>Your Assigned Tasks Schedule</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div style={{ padding: 14, background: 'var(--bg-tertiary)', borderLeft: '4px solid var(--brand-color)', borderRadius: 6 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                      <strong>Replace corridor bulb - Lobby B</strong>
-                      <span className="badge badge-warning">High Priority</span>
+                  {openTickets.map(t => (
+                    <div key={t.id} onClick={() => handleLineClick(t.id)} style={{ padding: 14, background: 'var(--bg-tertiary)', borderLeft: '4px solid var(--brand-color)', borderRadius: 6, cursor: 'pointer' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                        <strong>{t.subject}</strong>
+                        <span className="badge badge-warning">{t.priority}</span>
+                      </div>
+                      <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>Ticket: {t.id} | Due by: 2026-06-16 22:00</p>
                     </div>
-                    <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>Due by: 2026-06-16 22:00 | Building Room: Suite 104</p>
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -482,7 +498,7 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
                   <h3 style={{ fontSize: 14, marginBottom: 12 }}>SLA Compliance Monitoring</h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {openTickets.map(t => (
-                      <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 8, background: 'var(--bg-tertiary)', borderRadius: 6 }}>
+                      <div key={t.id} onClick={() => handleLineClick(t.id)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 8, background: 'var(--bg-tertiary)', borderRadius: 6, cursor: 'pointer' }}>
                         <span style={{ fontSize: 12, fontWeight: 500 }}>{t.id}: {t.subject}</span>
                         {renderSLATimer(t)}
                       </div>
@@ -526,193 +542,263 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
                   <div className="stat-value">98.2%</div>
                 </div>
               </div>
+
+              {/* Admin Open Tickets List */}
+              <div className="card-panel">
+                <h3 style={{ fontSize: 14, marginBottom: 12 }}>Global Ticket Overview Console</h3>
+                <div className="table-container">
+                  <table className="custom-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Subject</th>
+                        <th>Tenant</th>
+                        <th>Category</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {localTickets.map(t => (
+                        <tr key={t.id} onClick={() => handleLineClick(t.id)} style={{ cursor: 'pointer' }}>
+                          <td style={{ fontWeight: 600 }}>{t.id}</td>
+                          <td>{t.subject}</td>
+                          <td>{t.tenantName}</td>
+                          <td>{t.category || 'General'}</td>
+                          <td>{t.priority}</td>
+                          <td><span className={`badge ${t.status === 'closed' ? 'badge-success' : 'badge-warning'}`}>{t.status}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* TAB 2: CONSOLE VIEW */}
-      {activeTab === 'console' && (
-        <div className="grid-2col" style={{ gridTemplateColumns: '1.2fr 2fr', gap: 20 }}>
-          
-          {/* Issue list view sidebar */}
-          <div className="card-panel" style={{ padding: 0, display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--border-color)', marginBottom: 10 }}>
-              <h3 style={{ fontSize: '0.95rem', margin: 0 }}>Open Issues ({openTickets.length})</h3>
-              <button 
-                className="btn btn-primary btn-sm" 
-                style={{ padding: '6px 12px', fontSize: 11 }}
-                onClick={() => setShowCreateModal(true)}
-              >
-                Create Issue
-              </button>
-            </div>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 8, overflowY: 'auto', maxHeight: 420 }}>
-              {currentItems.map(ticket => {
-                const isSelected = selectedTicketId === ticket.id;
-                return (
-                  <div 
-                    key={ticket.id} 
-                    onClick={() => setSelectedTicketId(ticket.id)}
-                    style={{ 
-                      padding: 12, 
-                      backgroundColor: isSelected ? 'var(--bg-accent-alpha)' : 'var(--bg-tertiary)', 
-                      border: `1px solid ${isSelected ? 'var(--brand-color)' : 'var(--border-color)'}`,
-                      borderRadius: 'var(--radius-md)',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
+      {/* TAB 2: ISSUE VIEW */}
+      {activeTab === 'issue' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Kanban / List Toggle */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button className={`btn btn-sm ${issueViewMode === 'list' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setIssueViewMode('list')}>
+              List View
+            </button>
+            <button className={`btn btn-sm ${issueViewMode === 'kanban' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setIssueViewMode('kanban')}>
+              Kanban View
+            </button>
+          </div>
+
+          {issueViewMode === 'list' ? (
+            <div className="grid-2col" style={{ gridTemplateColumns: selectedTicketId ? '1.2fr 2fr' : '1fr', gap: 20 }}>
+              {/* Ticket list view sidebar */}
+              <div className="card-panel" style={{ padding: 0, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--border-color)', marginBottom: 10 }}>
+                  <h3 style={{ fontSize: '0.95rem', margin: 0 }}>Open Issues ({openTickets.length})</h3>
+                  <button 
+                    className="btn btn-primary btn-sm" 
+                    style={{ padding: '6px 12px', fontSize: 11 }}
+                    onClick={() => setShowCreateModal(true)}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--brand-color)' }}>{ticket.id}</span>
-                      {renderSLATimer(ticket)}
-                    </div>
-                    <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {ticket.subject}
+                    Create Issue
+                  </button>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 8, overflowY: 'auto', maxHeight: 420 }}>
+                  {currentItems.map(ticket => {
+                    const isSelected = selectedTicketId === ticket.id;
+                    return (
+                      <div 
+                        key={ticket.id} 
+                        onClick={() => setSelectedTicketId(ticket.id)}
+                        style={{ 
+                          padding: 12, 
+                          backgroundColor: isSelected ? 'var(--bg-accent-alpha)' : 'var(--bg-tertiary)', 
+                          border: `1px solid ${isSelected ? 'var(--brand-color)' : 'var(--border-color)'}`,
+                          borderRadius: 'var(--radius-md)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--brand-color)' }}>{ticket.id}</span>
+                          {renderSLATimer(ticket)}
+                        </div>
+                        <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {ticket.subject}
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
+                          <div>Type: <strong style={{ color: 'var(--text-primary)' }}>{ticket.category || 'Maintenance'}</strong></div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Tenant: {ticket.tenantName}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {renderPaginationControls(localTickets.length)}
+              </div>
+
+              {/* Thread & Details drawer panel */}
+              <div className="card-panel" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: 500 }}>
+                {selectedTicket ? (
+                  <>
+                    <div style={{ padding: 16, borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <h3 style={{ fontSize: '0.95rem' }}>{selectedTicket.subject}</h3>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                          Tenant: {selectedTicket.tenantName} | Date: {selectedTicket.dateRaised}
+                        </div>
+                      </div>
+                      
+                      {/* Convert controls */}
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <button 
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '5px 10px', fontSize: 10 }}
+                          onClick={() => handleConvertToMaintenance(selectedTicket)}
+                        >
+                          Convert to WO
+                        </button>
+                        <select 
+                          value={selectedTicket.status} 
+                          onChange={(e) => handleStatusChange(selectedTicket.id, e.target.value)}
+                          className="form-select"
+                          style={{ padding: '4px 8px', fontSize: 10, width: 110 }}
+                        >
+                          <option value="open">Open</option>
+                          <option value="assigned">Assigned</option>
+                          <option value="in progress">In Progress</option>
+                          <option value="resolved">Resolved</option>
+                          <option value="closed">Closed</option>
+                        </select>
+                      </div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
-                      <div>Type: <strong style={{ color: 'var(--text-primary)' }}>{ticket.category || 'Maintenance'}</strong></div>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Tenant: {ticket.tenantName}</div>
+                    {/* Sub Tab Selector for Thread Details */}
+                    <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-tertiary)' }}>
+                      {['public', 'internal', 'emails', 'history'].map(t => (
+                        <button 
+                          key={t}
+                          onClick={() => setCommTab(t)}
+                          style={{ 
+                            flex: 1, 
+                            padding: '10px 0', 
+                            fontSize: 11, 
+                            fontWeight: 600, 
+                            border: 'none', 
+                            background: 'none', 
+                            color: commTab === t ? 'var(--brand-color)' : 'var(--text-secondary)',
+                            borderBottom: commTab === t ? '2px solid var(--brand-color)' : 'none',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {t.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Sub Tab Content */}
+                    <div style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {commTab === 'public' && (
+                        selectedTicket.messages.filter(m => m.sender !== 'system').map((msg, index) => (
+                          <div key={index} style={{ alignSelf: msg.sender === 'admin' ? 'flex-end' : 'flex-start', maxWidth: '75%' }}>
+                            <div style={{ padding: '8px 12px', borderRadius: 8, backgroundColor: msg.sender === 'admin' ? 'var(--brand-color)' : 'var(--bg-secondary)', color: msg.sender === 'admin' ? '#000' : 'var(--text-primary)', fontSize: 12 }}>
+                              {msg.text}
+                            </div>
+                            <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', textAlign: msg.sender === 'admin' ? 'right' : 'left', marginTop: 2 }}>{msg.timestamp}</span>
+                          </div>
+                        ))
+                      )}
+
+                      {commTab === 'internal' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div style={{ padding: 10, background: 'rgba(251,191,36,0.1)', borderLeft: '4px solid #fbbf24', borderRadius: 4, fontSize: 11 }}>
+                            <strong>Note by PM (2026-06-16):</strong> Confirmed leakage is inside partition wall. Called local plumber.
+                          </div>
+                        </div>
+                      )}
+
+                      {commTab === 'emails' && (
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          No emails synchronized for this ticket.
+                        </div>
+                      )}
+
+                      {commTab === 'history' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingLeft: 10, borderLeft: '2px solid var(--border-color)' }}>
+                          <div style={{ fontSize: 11 }}>
+                            <strong style={{ color: 'var(--brand-color)' }}>Created</strong> - 2026-06-16 20:25:00
+                          </div>
+                          <div style={{ fontSize: 11 }}>
+                            <strong>Status Changed</strong> to Open - 2026-06-16 20:25:10
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Input text controls */}
+                    {commTab === 'public' && (
+                      <form onSubmit={handleSendAdminMessage} style={{ padding: 12, borderTop: '1px solid var(--border-color)', display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input 
+                          type="text" 
+                          value={messageText}
+                          onChange={(e) => setMessageText(e.target.value)}
+                          placeholder="Type public comment response..." 
+                          className="form-input" 
+                          style={{ flex: 1 }}
+                        />
+                        <button type="submit" className="btn btn-primary" style={{ padding: '10px 14px' }}>
+                          <Send size={14} />
+                        </button>
+                      </form>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, color: 'var(--text-muted)' }}>
+                    <MessageSquare size={36} style={{ marginBottom: 12 }} />
+                    <p>Select a ticket to review communication logs.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* KANBAN VIEW FOR ISSUES */
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, minHeight: 400 }}>
+              {['Open', 'Assigned', 'In Progress', 'Resolved', 'Closed'].map(status => {
+                const statusTickets = localTickets.filter(t => (t.status || 'open').toLowerCase() === status.toLowerCase());
+                return (
+                  <div 
+                    key={status} 
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, status)}
+                    style={{ background: 'var(--bg-tertiary)', padding: 10, borderRadius: 8 }}
+                  >
+                    <h3 style={{ fontSize: 12, marginBottom: 8, borderBottom: '2px solid var(--border-color)', paddingBottom: 4 }}>
+                      {status} ({statusTickets.length})
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {statusTickets.map(t => (
+                        <div 
+                          key={t.id} 
+                          draggable 
+                          onDragStart={(e) => handleDragStart(e, t.id)}
+                          onClick={() => { setSelectedTicketId(t.id); setIssueViewMode('list'); }}
+                          style={{ background: 'var(--bg-secondary)', padding: 8, borderRadius: 6, border: '1px solid var(--border-color)', cursor: 'grab', fontSize: 11 }}
+                        >
+                          <div style={{ fontWeight: 700, color: 'var(--brand-color)' }}>{t.id}</div>
+                          <div style={{ fontWeight: 600, margin: '2px 0' }}>{t.subject}</div>
+                          <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{t.tenantName}</div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 );
               })}
             </div>
-            {renderPaginationControls(localTickets.length)}
-          </div>
-
-          {/* Thread & Details drawer panel */}
-          <div className="card-panel" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: 500 }}>
-            {selectedTicket ? (
-              <>
-                <div style={{ padding: 16, borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <h3 style={{ fontSize: '0.95rem' }}>{selectedTicket.subject}</h3>
-                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-                      Tenant: {selectedTicket.tenantName} | Date: {selectedTicket.dateRaised}
-                    </div>
-                  </div>
-                  
-                  {/* Convert controls */}
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button 
-                      className="btn btn-secondary btn-sm"
-                      style={{ padding: '5px 10px', fontSize: 10 }}
-                      onClick={() => handleConvertToMaintenance(selectedTicket)}
-                    >
-                      Convert to WO
-                    </button>
-                    <select 
-                      value={selectedTicket.status} 
-                      onChange={(e) => handleStatusChange(selectedTicket.id, e.target.value)}
-                      className="form-select"
-                      style={{ padding: '4px 8px', fontSize: 10, width: 110 }}
-                    >
-                      <option value="open">Open</option>
-                      <option value="assigned">Assigned</option>
-                      <option value="in progress">In Progress</option>
-                      <option value="resolved">Resolved</option>
-                      <option value="closed">Closed</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Sub Tab Selector for Thread Details */}
-                <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-tertiary)' }}>
-                  {['public', 'internal', 'emails', 'history'].map(t => (
-                    <button 
-                      key={t}
-                      onClick={() => setCommTab(t)}
-                      style={{ 
-                        flex: 1, 
-                        padding: '10px 0', 
-                        fontSize: 11, 
-                        fontWeight: 600, 
-                        border: 'none', 
-                        background: 'none', 
-                        color: commTab === t ? 'var(--brand-color)' : 'var(--text-secondary)',
-                        borderBottom: commTab === t ? '2px solid var(--brand-color)' : 'none',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {t.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Sub Tab Content */}
-                <div style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {commTab === 'public' && (
-                    selectedTicket.messages.filter(m => m.sender !== 'system').map((msg, index) => (
-                      <div key={index} style={{ alignSelf: msg.sender === 'admin' ? 'flex-end' : 'flex-start', maxWidth: '75%' }}>
-                        <div style={{ padding: '8px 12px', borderRadius: 8, backgroundColor: msg.sender === 'admin' ? 'var(--brand-color)' : 'var(--bg-secondary)', color: msg.sender === 'admin' ? '#000' : 'var(--text-primary)', fontSize: 12 }}>
-                          {msg.text}
-                        </div>
-                        <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', textAlign: msg.sender === 'admin' ? 'right' : 'left', marginTop: 2 }}>{msg.timestamp}</span>
-                      </div>
-                    ))
-                  )}
-
-                  {commTab === 'internal' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      <div style={{ padding: 10, background: 'rgba(251,191,36,0.1)', borderLeft: '4px solid #fbbf24', borderRadius: 4, fontSize: 11 }}>
-                        <strong>Note by PM (2026-06-16):</strong> Confirmed leakage is inside partition wall. Called local plumber.
-                      </div>
-                    </div>
-                  )}
-
-                  {commTab === 'emails' && (
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      No emails synchronized for this ticket.
-                    </div>
-                  )}
-
-                  {commTab === 'history' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingLeft: 10, borderLeft: '2px solid var(--border-color)' }}>
-                      <div style={{ fontSize: 11 }}>
-                        <strong style={{ color: 'var(--brand-color)' }}>Created</strong> - 2026-06-16 20:25:00
-                      </div>
-                      <div style={{ fontSize: 11 }}>
-                        <strong>Status Changed</strong> to Open - 2026-06-16 20:25:10
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Input text controls */}
-                {commTab === 'public' && (
-                  <form onSubmit={handleSendAdminMessage} style={{ padding: 12, borderTop: '1px solid var(--border-color)', display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button 
-                      type="button" 
-                      onClick={() => toggleSpeechRecognition('admin')}
-                      className={`btn ${isListening ? 'btn-danger' : 'btn-secondary'}`}
-                      style={{ padding: 10, borderRadius: 8 }}
-                    >
-                      {isListening ? <MicOff size={15} /> : <Mic size={15} />}
-                    </button>
-                    <input 
-                      type="text" 
-                      value={messageText}
-                      onChange={(e) => setMessageText(e.target.value)}
-                      placeholder="Type public comment response..." 
-                      className="form-input" 
-                      style={{ flex: 1 }}
-                    />
-                    <button type="submit" className="btn btn-primary" style={{ padding: '10px 14px' }}>
-                      <Send size={14} />
-                    </button>
-                  </form>
-                )}
-              </>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, color: 'var(--text-muted)' }}>
-                <MessageSquare size={36} style={{ marginBottom: 12 }} />
-                <p>Select a ticket to review communication logs.</p>
-              </div>
-            )}
-          </div>
+          )}
         </div>
       )}
 

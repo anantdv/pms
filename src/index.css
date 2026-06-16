@@ -393,12 +393,12 @@ h1, h2, h3, h4, h5, h6 {
 
 .btn-primary {
   background-color: var(--brand-color);
-  color: #000000;
+  color: #ffffff;
 }
 
 .btn-primary:hover {
   background-color: var(--brand-hover);
-  box-shadow: 0 0 15px rgba(255, 221, 0, 0.25);
+  box-shadow: 0 0 15px rgba(6, 95, 70, 0.25);
 }
 
 .btn-secondary {
