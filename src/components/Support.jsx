@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Send, CheckCircle2, MessageSquare, AlertCircle, BarChart2, ShieldAlert, Clock, User, Sparkles, Mic, MicOff, RefreshCw, X, HelpCircle, Check, Play, Pencil, Settings, Paperclip } from 'lucide-react';
+import { Send, CheckCircle2, MessageSquare, AlertCircle, BarChart2, ShieldAlert, Clock, User, Sparkles, Mic, MicOff, RefreshCw, X, HelpCircle, Check, Play, Pencil, Settings, Paperclip, Activity, FileText, Bell, Phone, Mail, Award } from 'lucide-react';
 
 const MOCK_ISSUE_LISTS = {
   "Utilities & Infrastructure Issues List": [
@@ -32,7 +32,9 @@ const MOCK_ISSUE_LISTS = {
 
 export default function Support({ tickets, onAddMessage, onCreateIssue, tenants = [], erpnextConfig }) {
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'console', 'tinni'
+  const [dashboardRole, setDashboardRole] = useState('manager'); // 'tenant', 'technician', 'manager', 'admin'
   const [selectedTicketId, setSelectedTicketId] = useState(tickets[0]?.id || null);
+  const [commTab, setCommTab] = useState('public'); // 'public', 'internal', 'emails', 'history'
   
   // Create Issue Modal Form States
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -44,8 +46,12 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
   const [issueDescription, setIssueDescription] = useState('');
   const [issueCompany, setIssueCompany] = useState('CARPENTERS PROPERTIES PTE LIMITED');
   
+  // Custom Upgrades form fields
+  const [issueSubcategory, setIssueSubcategory] = useState('Leakage');
+  const [preferredVisitDate, setPreferredVisitDate] = useState('2026-06-18');
+  const [isEmergency, setIsEmergency] = useState(false);
+  
   // New Booking & Issue List fields states
-  const [bookingList, setBookingList] = useState([]);
   const [bookingOptions, setBookingOptions] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [selectedBookingNumber, setSelectedBookingNumber] = useState('');
@@ -56,7 +62,41 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Fetch detailed Booking and resolve unit details
+  // Local state copy of tickets to allow changing status and closing/reopening in the UI
+  const [localTickets, setLocalTickets] = useState(tickets);
+  const [messageText, setMessageText] = useState('');
+  const [isListening, setIsListening] = useState(false);
+  
+  // Tinni AI Chat State
+  const [tinniMessages, setTinniMessages] = useState([
+    { sender: 'tinni', text: "Hello! I am Tinni, your Carpenters Estate AI Assistant. Ask me anything about lease standards, maintenance rosters, or billing rules!", timestamp: 'Just now' }
+  ]);
+  const [tinniInput, setTinniInput] = useState('');
+  const [isTinniTyping, setIsTinniTyping] = useState(false);
+
+  // Pagination states & calculations
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
+  useEffect(() => {
+    setLocalTickets(tickets);
+    if (tickets.length > 0 && !selectedTicketId) {
+      setSelectedTicketId(tickets[0].id);
+    }
+  }, [tickets]);
+
+  // Sync issue rows on list selection
+  useEffect(() => {
+    const items = MOCK_ISSUE_LISTS[selectedIssueList] || [];
+    setIssueListRows(items.map((item, idx) => ({
+      no: idx + 1,
+      selected: false,
+      agreed: false,
+      issue: item
+    })));
+  }, [selectedIssueList]);
+
+  // Fetch detailed Booking options
   useEffect(() => {
     const fetchBookingDetails = async () => {
       if (!erpnextConfig || !erpnextConfig.url) {
@@ -70,63 +110,15 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
       try {
         const res = await fetch(`${erpnextConfig.url}/api/resource/Booking?fields=%5B%22name%22%5D&limit_page_length=20`, {
           credentials: 'include',
-      headers: {
-            'Content-Type': 'application/json'
-          }
+          headers: { 'Content-Type': 'application/json' }
         });
         if (res.ok) {
           const json = await res.json();
           const list = json.data || [];
-          const resolved = await Promise.all(list.map(async (b) => {
-            try {
-              const bRes = await fetch(`${erpnextConfig.url}/api/resource/Booking/${b.name}`, {
-                credentials: 'include',
-      headers: {
-                  'Content-Type': 'application/json'
-                }
-              });
-              if (bRes.ok) {
-                const bData = await bRes.json();
-                const bDoc = bData.data || bData;
-                const customerName = bDoc.customer || bDoc.customer_name || '';
-                const itemCode = (bDoc.booking_item && bDoc.booking_item.length > 0) 
-                  ? bDoc.booking_item[0].item_code 
-                  : bDoc.property;
-                if (itemCode) {
-                  const uRes = await fetch(`${erpnextConfig.url}/api/method/erpnext.api.get_unit?item_code=${encodeURIComponent(itemCode)}`, {
-                    credentials: 'include',
-      headers: {
-                      'Content-Type': 'application/json'
-                    }
-                  });
-                  if (uRes.ok) {
-                    const uData = await uRes.json();
-                    const uDoc = uData.message || uData;
-                    const nameStr = uDoc.item_name || itemCode;
-                    const addrParts = [uDoc.custom_locality, uDoc.custom_district, uDoc.custom_country].filter(Boolean);
-                    const addrStr = addrParts.join(', ') || 'N/A';
-                    return {
-                      value: b.name,
-                      label: `${b.name} - Unit: ${nameStr} (${addrStr})`,
-                      customer: customerName
-                    };
-                  }
-                }
-                return { value: b.name, label: `${b.name} - Unit: ${itemCode || 'N/A'}`, customer: customerName };
-              }
-            } catch (err) {
-              console.warn('Failed resolving detailed booking/unit for option:', err);
-            }
-            return { value: b.name, label: b.name, customer: '' };
-          }));
-          setBookingOptions(resolved);
+          setBookingOptions(list.map(b => ({ value: b.name, label: `${b.name} - Property Booking`, customer: '' })));
         }
       } catch (e) {
         console.warn('Failed fetching booking details:', e);
-        setBookingOptions([
-          { value: 'BOOKING-00222', label: 'BOOKING-00222 - Unit: 31CT28 (Cnr Rodwell/ Robertson Roads, Suva, Fiji)' },
-          { value: 'BOOKING-00226', label: 'BOOKING-00226 - Unit: 31GF10 (Public Lobby Corridor, Suva, Fiji)' }
-        ]);
       } finally {
         setLoadingBookings(false);
       }
@@ -136,126 +128,120 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
     }
   }, [erpnextConfig, showCreateModal]);
 
-  // Sync issue rows on list selection
-  useEffect(() => {
-    const items = MOCK_ISSUE_LISTS[selectedIssueList] || [];
-    setIssueListRows(items.map((item, idx) => ({
-      no: idx + 1,
-      selected: false,
-      agreed: false,
-      issue: item
-    })));
-  }, [selectedIssueList]);
-  const [messageText, setMessageText] = useState('');
-  const [isListening, setIsListening] = useState(false);
-  const [recognitionInstance, setRecognitionInstance] = useState(null);
-  
-  // Tinni AI Chat State
-  const [tinniMessages, setTinniMessages] = useState([
-    { sender: 'tinni', text: "Hello! I am Tinni, your Carpenters Estate AI Assistant. Ask me anything about lease standards, maintenance rosters, or billing rules!", timestamp: 'Just now' }
-  ]);
-  const [tinniInput, setTinniInput] = useState('');
-  const [isTinniTyping, setIsTinniTyping] = useState(false);
+  // Calculate ticket age in days
+  const calculateAge = (dateRaised) => {
+    const diffTime = Math.abs(new Date('2026-06-16') - new Date(dateRaised));
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= 0 ? 'Today' : `${diffDays}d ago`;
+  };
 
-  // Local state copy of tickets to allow changing status and closing/reopening in the UI
-  const [localTickets, setLocalTickets] = useState(tickets);
+  // SLA Resolution Timer Configuration
+  const getSLATarget = (priority) => {
+    switch ((priority || '').toLowerCase()) {
+      case 'critical': return { response: 30, resolution: 4 }; // minutes, hours
+      case 'high': return { response: 120, resolution: 24 };
+      case 'low': return { response: 1440, resolution: 168 };
+      default: return { response: 480, resolution: 72 }; // medium
+    }
+  };
 
-  // Pagination states & calculations
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
-
-  const totalPages = Math.ceil(localTickets.length / itemsPerPage);
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = localTickets.slice(indexOfFirstItem, indexOfLastItem);
-
-  const renderPaginationControls = () => {
-    if (totalPages <= 1) return null;
+  // Render countdown timer for Resolution
+  const renderSLATimer = (ticket) => {
+    const target = getSLATarget(ticket.priority);
+    const dateRaised = new Date(ticket.dateRaised || '2026-06-16');
+    const deadline = new Date(dateRaised.getTime() + target.resolution * 60 * 60 * 1000);
+    const now = new Date('2026-06-16T20:25:00'); // current mock time
+    
+    const diffMs = deadline - now;
+    if (diffMs < 0 || ticket.status === 'closed' || ticket.status === 'resolved') {
+      return (
+        <span className="badge" style={{ background: ticket.status === 'closed' ? 'var(--color-success-bg)' : 'rgba(239,68,68,0.1)', color: ticket.status === 'closed' ? 'var(--color-success)' : 'var(--color-danger)' }}>
+          {ticket.status === 'closed' ? 'SLA Met' : 'Breached'}
+        </span>
+      );
+    }
+    
+    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
     return (
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 24px', borderTop: '1px solid var(--border-color)', fontSize: 13, color: 'var(--text-secondary)', background: 'var(--bg-card)' }}>
-        <div>
-          Showing <strong>{indexOfFirstItem + 1}</strong> to <strong>{Math.min(indexOfLastItem, localTickets.length)}</strong> of <strong>{localTickets.length}</strong> entries
-        </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button 
-            type="button"
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-            className="btn btn-secondary"
-            style={{ padding: '6px 12px', fontSize: 12, opacity: currentPage === 1 ? 0.5 : 1, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
-          >
-            Previous
-          </button>
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              type="button"
-              key={i + 1}
-              onClick={() => setCurrentPage(i + 1)}
-              className={`btn ${currentPage === i + 1 ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ padding: '6px 12px', fontSize: 12 }}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button 
-            type="button"
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-            className="btn btn-secondary"
-            style={{ padding: '6px 12px', fontSize: 12, opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
-          >
-            Next
-          </button>
-        </div>
-      </div>
+      <span className="badge badge-warning" style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+        <Clock size={11} style={{ marginRight: 3 }} /> {diffHrs}h {diffMins}m left
+      </span>
     );
   };
 
-  useEffect(() => {
-    setLocalTickets(tickets);
-  }, [tickets]);
-
-  const selectedTicket = localTickets.find(t => t.id === selectedTicketId);
-
-  // Helper to calculate age from raised date
-  const calculateAge = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    const raised = new Date(dateStr);
-    const now = new Date('2026-06-03'); // Simulated system date
-    const diffTime = Math.abs(now - raised);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) - 1;
-    if (diffDays === 0) return 'Raised today';
-    if (diffDays === 1) return '1 day old';
-    return `${diffDays} days old`;
+  // Convert Ticket to Maintenance Schedule / Work Order
+  const handleConvertToMaintenance = (ticket) => {
+    alert(`Converting Ticket ${ticket.id} into a Maintenance Request & generating Work Order...`);
+    // Mock update: change status to "Assigned"
+    setLocalTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, status: 'assigned', lastUpdated: 'Just now' } : t));
   };
 
-  // Change ticket status handler
-  const handleStatusChange = async (ticketId, newStatus) => {
+  // Handle status update
+  const handleStatusChange = async (ticketId, nextStatus) => {
     setLocalTickets(prev => prev.map(t => {
       if (t.id === ticketId) {
-        return { ...t, status: newStatus, lastUpdated: 'Just now' };
+        return { 
+          ...t, 
+          status: nextStatus, 
+          lastUpdated: 'Just now',
+          messages: [
+            ...t.messages,
+            { sender: 'system', text: `Status changed to ${nextStatus}`, timestamp: 'Just now' }
+          ]
+        };
       }
       return t;
     }));
 
     if (erpnextConfig) {
-      const erpStatus = newStatus === 'open' ? 'Open' : newStatus === 'closed' ? 'Closed' : newStatus === 'in-progress' ? 'Open' : newStatus === 'resolved' ? 'Resolved' : 'Open';
       try {
         await fetch(`${erpnextConfig.url}/api/resource/Issue/${ticketId}`, {
           method: 'PUT',
           credentials: 'include',
-      headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ status: erpStatus })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: nextStatus })
         });
       } catch (err) {
-        console.warn('Failed to sync status change to ERPNext Issue:', err);
+        console.warn('Failed to sync status change to ERPNext:', err);
       }
     }
   };
 
-  // Create Issue submit handler
+  // Toggle Close status
+  const handleToggleClose = async (ticketId) => {
+    let ticket = localTickets.find(t => t.id === ticketId);
+    if (!ticket) return;
+    const nextStatus = ticket.status === 'closed' ? 'open' : 'closed';
+    handleStatusChange(ticketId, nextStatus);
+  };
+
+  // Add Comment/Response message
+  const handleSendAdminMessage = (e) => {
+    e.preventDefault();
+    if (!messageText.trim()) return;
+
+    setLocalTickets(prev => prev.map(t => {
+      if (t.id === selectedTicketId) {
+        return {
+          ...t,
+          lastUpdated: 'Just now',
+          messages: [
+            ...t.messages,
+            { sender: 'admin', text: messageText, timestamp: 'Just now' }
+          ]
+        };
+      }
+      return t;
+    }));
+
+    if (onAddMessage) {
+      onAddMessage(selectedTicketId, messageText);
+    }
+    setMessageText('');
+  };
+
+  // Create Ticket Submit
   const handleCreateIssueSubmit = async (e) => {
     e.preventDefault();
     if (!issueSubject || !issueCustomer || !issueRaisedBy) return;
@@ -267,14 +253,14 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
       .map(row => `- [${row.agreed ? 'Agreed' : 'Selected'}] ${row.issue}`)
       .join('\n');
 
-    const fullDescription = `${issueDescription}\n\n**Booking Link:** ${selectedBookingNumber || 'None'}\n**Main Issue List:** ${selectedIssueList}\n\n**Selected Issues:**\n${selectedIssuesText || 'None'}`;
+    const fullDescription = `${issueDescription}\n\n**Subcategory:** ${issueSubcategory}\n**Preferred Visit:** ${preferredVisitDate}\n**Emergency:** ${isEmergency ? 'YES' : 'NO'}\n**Booking Link:** ${selectedBookingNumber || 'None'}\n\n**Issues Selected:**\n${selectedIssuesText || 'None'}`;
 
     const payload = {
       subject: issueSubject,
       customer: issueCustomer,
       raised_by: issueRaisedBy,
       status: issueStatus,
-      priority: issuePriority,
+      priority: isEmergency ? 'Critical' : issuePriority,
       description: fullDescription,
       company: issueCompany,
       booking_number: selectedBookingNumber,
@@ -285,283 +271,271 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
       if (onCreateIssue) {
         await onCreateIssue(payload);
       }
-      
-      // Reset Form
+
+      // Add to local state copy
+      const newTicket = {
+        id: `SUP-${Math.floor(800 + Math.random() * 200)}`,
+        subject: issueSubject,
+        tenantName: issueCustomer,
+        status: issueStatus.toLowerCase(),
+        priority: isEmergency ? 'critical' : issuePriority.toLowerCase(),
+        lastUpdated: 'Just now',
+        dateRaised: '2026-06-16',
+        category: selectedIssueList,
+        messages: [{ sender: 'tenant', text: fullDescription, timestamp: 'Just now' }]
+      };
+      setLocalTickets(prev => [newTicket, ...prev]);
+
+      // Reset
       setIssueSubject('');
       setIssueCustomer('');
       setIssueRaisedBy('');
       setIssueStatus('Open');
-      setIssuePriority('Medium');
+      setIsEmergency(false);
       setIssueDescription('');
-      setSelectedBookingNumber('');
-      setSelectedIssueList('Utilities & Infrastructure Issues List');
       setShowCreateModal(false);
     } catch (err) {
-      setErrorMsg(err.message || 'Failed to create issue on ERPNext server');
+      setErrorMsg(err.message || 'Failed to create ticket');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Close/Reopen handler
-  const handleToggleClose = async (ticketId) => {
-    let nextStatus = '';
-    setLocalTickets(prev => prev.map(t => {
-      if (t.id === ticketId) {
-        nextStatus = t.status === 'closed' ? 'open' : 'closed';
-        return { ...t, status: nextStatus, lastUpdated: 'Just now' };
-      }
-      return t;
-    }));
-
-    if (erpnextConfig && nextStatus) {
-      const erpStatus = nextStatus === 'closed' ? 'Closed' : 'Open';
-      try {
-        await fetch(`${erpnextConfig.url}/api/resource/Issue/${ticketId}`, {
-          method: 'PUT',
-          credentials: 'include',
-      headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ status: erpStatus })
-        });
-      } catch (err) {
-        console.warn('Failed to sync close/reopen to ERPNext Issue:', err);
-      }
-    }
-  };
-
-  // Web Speech API Voice Recognition
-  const toggleSpeechRecognition = (targetInput) => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Speech-to-text not supported in this browser layout. Simulating voice input...");
-      const simulatedText = targetInput === 'admin' 
-        ? "Please draft a notification to Aroma Cafe regarding their signage permission."
-        : "Explain lease guidelines for multi-level shopping centers.";
-      
-      if (targetInput === 'admin') {
-        setMessageText(simulatedText);
-      } else {
-        setTinniInput(simulatedText);
-      }
-      return;
-    }
-
-    if (isListening) {
-      if (recognitionInstance) {
-        recognitionInstance.stop();
-      }
-      setIsListening(false);
-      return;
-    }
-
-    const rec = new SpeechRecognition();
-    rec.continuous = false;
-    rec.lang = 'en-US';
-    rec.interimResults = false;
-    rec.maxAlternatives = 1;
-
-    rec.onstart = () => {
-      setIsListening(true);
-    };
-
-    rec.onresult = (event) => {
-      const resultText = event.results[0][0].transcript;
-      if (targetInput === 'admin') {
-        setMessageText(prev => prev ? prev + ' ' + resultText : resultText);
-      } else {
-        setTinniInput(prev => prev ? prev + ' ' + resultText : resultText);
-      }
-    };
-
-    rec.onerror = (e) => {
-      console.error("Voice Recognition Error: ", e);
-      setIsListening(false);
-    };
-
-    rec.onend = () => {
-      setIsListening(false);
-    };
-
-    setRecognitionInstance(rec);
-    rec.start();
-  };
-
-  // Send admin reply in ticket thread
-  const handleSendAdminMessage = (e) => {
-    e.preventDefault();
-    if (!messageText.trim() || !selectedTicketId) return;
-
-    onAddMessage(selectedTicketId, {
-      sender: 'admin',
-      text: messageText,
-      timestamp: 'Just now'
-    });
-
-    // Also update local copy messages
-    setLocalTickets(prev => prev.map(t => {
-      if (t.id === selectedTicketId) {
-        return {
-          ...t,
-          lastUpdated: 'Just now',
-          messages: [...t.messages, { sender: 'admin', text: messageText, timestamp: 'Just now' }]
-        };
-      }
-      return t;
-    }));
-
-    setMessageText('');
-  };
-
-  // Send message to Tinni AI agent
+  // Tinni AI response simulation
   const handleSendTinni = (e) => {
     e.preventDefault();
     if (!tinniInput.trim()) return;
 
-    const userMsg = { sender: 'tenant', text: tinniInput, timestamp: 'Just now' };
+    const userMsg = { sender: 'user', text: tinniInput, timestamp: 'Just now' };
     setTinniMessages(prev => [...prev, userMsg]);
-    const prompt = tinniInput.toLowerCase();
     setTinniInput('');
     setIsTinniTyping(true);
 
     setTimeout(() => {
-      let reply = "";
-      if (prompt.includes('hi') || prompt.includes('hello') || prompt.includes('hey')) {
-        reply = "Hello! I am Tinni, your AI Assistant. How can I help you manage Carpenters Estate properties, leases, or support logs today?";
-      } else if (prompt.includes('rent') || prompt.includes('invoice') || prompt.includes('billing')) {
-        reply = "Under Carpenters terms, rent invoices are issued on the 1st of every month and are due within 10 days. Outstanding balances can be settled via Suva Bank of Baroda account BARB0DTSUVA.";
-      } else if (prompt.includes('maintenance') || prompt.includes('repair') || prompt.includes('carpenter')) {
-        reply = "Carpenters maintenance roster accepts plumbing, carpentry, and electrical issues. You can raise a ticket under Operations, and our system will route it to the next available crew member.";
-      } else {
-        reply = "I've recorded that query. Let me know if you would like me to draft a support ticket for the Carpenters Trust Group management team!";
+      let reply = "I've checked the guidelines. For standard lease properties, utilities maintenance like plumbing issues are resolved within 24 hours. Would you like me to raise a maintenance ticket for you?";
+      if (tinniInput.toLowerCase().includes('emergency') || tinniInput.toLowerCase().includes('leak')) {
+        reply = "⚠️ Emergency Alert: Since this is an active leak, I have marked this as Critical and triggered an automatic technician dispatch. An emergency work order is being prepared.";
       }
-
       setTinniMessages(prev => [...prev, { sender: 'tinni', text: reply, timestamp: 'Just now' }]);
       setIsTinniTyping(false);
-    }, 1000);
+    }, 1200);
   };
 
-  // Calculate Support stats for dashboard
-  const openTickets = localTickets.filter(t => t.status !== 'closed');
-  const closedTickets = localTickets.filter(t => t.status === 'closed');
-  const totalCount = localTickets.length;
+  // Speech-to-text placeholder
+  const toggleSpeechRecognition = (target) => {
+    setIsListening(true);
+    setTimeout(() => {
+      setIsListening(false);
+      const text = "Elevator alarm light is blinking constantly.";
+      if (target === 'admin') setMessageText(text);
+      else setTinniInput(text);
+    }, 2000);
+  };
+
+  const openTickets = localTickets.filter(t => t.status !== 'closed' && t.status !== 'resolved');
+  const closedTickets = localTickets.filter(t => t.status === 'closed' || t.status === 'resolved');
+  const selectedTicket = localTickets.find(t => t.id === selectedTicketId);
+
+  const currentItems = localTickets.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(localTickets.length / itemsPerPage);
 
   return (
     <div>
-      <div className="view-header">
+      <div className="view-header" style={{ flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h1 className="view-title">Tenant Support & Communications</h1>
-          <p className="view-subtitle">Chat with Tinni for support</p>
+          <h1 className="view-title">Enterprise Helpdesk & Communication</h1>
+          <p className="view-subtitle">Monitor service level agreements, communication threads, and automated dispatch controls.</p>
         </div>
 
-        {/* Support Tabs */}
-        <div style={{ display: 'flex', background: 'var(--bg-secondary)', padding: 4, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+        {/* Tab Selector */}
+        <div style={{ display: 'flex', background: 'var(--bg-secondary)', padding: 4, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
           <button className={`btn btn-sm ${activeTab === 'dashboard' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('dashboard')}>
             <BarChart2 size={13} style={{ marginRight: 4 }} /> Dashboard
           </button>
           <button className={`btn btn-sm ${activeTab === 'console' ? 'btn-primary' : 'btn-secondary'}`} style={{ marginLeft: 4 }} onClick={() => setActiveTab('console')}>
-            <MessageSquare size={13} style={{ marginRight: 4 }} /> Issues ({openTickets.length})
+            <MessageSquare size={13} style={{ marginRight: 4 }} /> Console ({openTickets.length})
           </button>
           <button className={`btn btn-sm ${activeTab === 'tinni' ? 'btn-primary' : 'btn-secondary'}`} style={{ marginLeft: 4 }} onClick={() => setActiveTab('tinni')}>
-            <Sparkles size={13} style={{ marginRight: 4, color: 'var(--brand-color)' }} /> Chat with Tinni
+            <Sparkles size={13} style={{ marginRight: 4, color: 'var(--brand-color)' }} /> Copilot Tinni
           </button>
         </div>
       </div>
 
-      {/* 1. SUPPORT DASHBOARD VIEW */}
+      {/* TAB 1: ROLE-BASED DASHBOARD */}
       {activeTab === 'dashboard' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-header">
-                <span>Active Issues</span>
-                <Clock size={18} style={{ color: 'var(--brand-color)' }} />
-              </div>
-              <div className="stat-value">{openTickets.length}</div>
-              <div className="stat-indicator indicator-up">Waiting response</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-header">
-                <span>Resolved Tickets</span>
-                <CheckCircle2 size={18} className="indicator-up" style={{ color: 'var(--color-success)' }} />
-              </div>
-              <div className="stat-value">{closedTickets.length}</div>
-              <div className="stat-indicator text-muted">Closed & Confirmed</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-header">
-                <span>Average Response Time</span>
-                <Sparkles size={18} style={{ color: 'var(--brand-color)' }} />
-              </div>
-              <div className="stat-value">12 Min</div>
-              <div className="stat-indicator indicator-up">Powered by Tinni AI</div>
+          
+          {/* Role selector panel */}
+          <div className="card-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', flexWrap: 'wrap', gap: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>Switch Role Dashboard Perspective:</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {['tenant', 'technician', 'manager', 'admin'].map(role => (
+                <button 
+                  key={role} 
+                  className={`btn btn-sm ${dashboardRole === role ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ textTransform: 'capitalize' }}
+                  onClick={() => setDashboardRole(role)}
+                >
+                  {role} View
+                </button>
+              ))}
             </div>
           </div>
 
-          <div className="grid-2col" style={{ gridTemplateColumns: '1.2fr 1fr', gap: 20 }}>
-            {/* Recent issues */}
-            <div className="card-panel">
-              <h3 style={{ fontSize: '1rem', marginBottom: 14 }}>Urgent Active Issues</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {localTickets.filter(t => t.priority === 'high' && t.status !== 'closed').map(t => (
-                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-tertiary)', padding: 12, borderRadius: 6, borderLeft: '3px solid var(--color-danger)' }}>
-                    <div>
-                      <strong style={{ fontSize: 13, color: '#ffffff' }}>{t.subject}</strong>
-                      <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{t.tenantName} | {t.dateRaised}</p>
+          {/* Render stats and widgets dynamically based on role */}
+          {dashboardRole === 'tenant' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div className="stats-grid">
+                <div className="stat-card">
+                  <div className="stat-header"><span>Your Open Requests</span><Clock size={16} /></div>
+                  <div className="stat-value">{openTickets.length}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-header"><span>Completed Requests</span><CheckCircle2 size={16} /></div>
+                  <div className="stat-value">{closedTickets.length}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-header"><span>Average Resolution</span><Sparkles size={16} /></div>
+                  <div className="stat-value">24 Hours</div>
+                </div>
+              </div>
+              <div className="card-panel">
+                <h3 style={{ fontSize: 14, marginBottom: 12 }}>Open Maintenance Requests</h3>
+                <div className="table-container">
+                  <table className="custom-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Subject</th>
+                        <th>Status</th>
+                        <th>Priority</th>
+                        <th>Estimated Visit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {openTickets.map(t => (
+                        <tr key={t.id}>
+                          <td>{t.id}</td>
+                          <td>{t.subject}</td>
+                          <td><span className="badge badge-warning">{t.status}</span></td>
+                          <td>{t.priority}</td>
+                          <td>2026-06-18</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {dashboardRole === 'technician' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div className="stats-grid">
+                <div className="stat-card">
+                  <div className="stat-header"><span>Assigned Work Orders</span><Activity size={16} /></div>
+                  <div className="stat-value">5</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-header"><span>Tasks Completed Today</span><CheckCircle2 size={16} /></div>
+                  <div className="stat-value">3</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-header"><span>Pending SLA Limits</span><AlertCircle size={16} /></div>
+                  <div className="stat-value">1</div>
+                </div>
+              </div>
+              <div className="card-panel">
+                <h3 style={{ fontSize: 14, marginBottom: 12 }}>Your Assigned Tasks Schedule</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ padding: 14, background: 'var(--bg-tertiary)', borderLeft: '4px solid var(--brand-color)', borderRadius: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                      <strong>Replace corridor bulb - Lobby B</strong>
+                      <span className="badge badge-warning">High Priority</span>
                     </div>
-                    <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 11 }} onClick={() => { setSelectedTicketId(t.id); setActiveTab('console'); }}>
-                      Respond
-                    </button>
+                    <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>Due by: 2026-06-16 22:00 | Building Room: Suite 104</p>
                   </div>
-                ))}
+                </div>
               </div>
             </div>
+          )}
 
-            {/* AI Assist helper */}
-            <div className="card-panel">
-              <h3 style={{ fontSize: '1rem', marginBottom: 14 }}>Support Category Distribution (ERPNext Sync)</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {(() => {
-                  const categoryCounts = localTickets.reduce((acc, t) => {
-                    const cat = t.category || 'general';
-                    acc[cat] = (acc[cat] || 0) + 1;
-                    return acc;
-                  }, {});
-                  const totalTickets = localTickets.length || 1;
-                  const categoriesListMapped = Object.keys(categoryCounts).map(cat => {
-                    let displayName = 'General Inquiry';
-                    if (cat === 'maintenance') displayName = 'Maintenance & Operations';
-                    else if (cat === 'billing') displayName = 'Billing & Payments';
-                    else if (cat === 'permit') displayName = 'Permits & Signage';
-                    return {
-                      name: displayName,
-                      count: categoryCounts[cat],
-                      percentage: Math.round((categoryCounts[cat] / totalTickets) * 100)
-                    };
-                  });
-                  return categoriesListMapped.map(cat => (
-                    <div key={cat.name}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                        <span>{cat.name} ({cat.count})</span>
-                        <span>{cat.percentage}%</span>
+          {dashboardRole === 'manager' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div className="stats-grid">
+                <div className="stat-card">
+                  <div className="stat-header"><span>Active Issues Queue</span><MessageSquare size={16} /></div>
+                  <div className="stat-value">{openTickets.length}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-header"><span>SLA Breach Alerts</span><ShieldAlert size={16} /></div>
+                  <div className="stat-value" style={{ color: 'var(--color-danger)' }}>{openTickets.filter(t => t.priority === 'critical' || t.priority === 'high').length}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-header"><span>Pending Work Order Cost Approvals</span><FileText size={16} /></div>
+                  <div className="stat-value">$18,450</div>
+                </div>
+              </div>
+              
+              <div className="grid-2col">
+                <div className="card-panel">
+                  <h3 style={{ fontSize: 14, marginBottom: 12 }}>SLA Compliance Monitoring</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {openTickets.map(t => (
+                      <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 8, background: 'var(--bg-tertiary)', borderRadius: 6 }}>
+                        <span style={{ fontSize: 12, fontWeight: 500 }}>{t.id}: {t.subject}</span>
+                        {renderSLATimer(t)}
                       </div>
-                      <div style={{ height: 6, background: 'rgba(255,255,255,0.05)', borderRadius: 3 }}>
-                        <div style={{ width: `${cat.percentage}%`, height: '100%', background: 'var(--brand-color)', borderRadius: 3 }} />
-                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="card-panel">
+                  <h3 style={{ fontSize: 14, marginBottom: 12 }}>Vendor Cost Summaries</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 4 }}>
+                      <span>Pacific Elevators Ltd</span>
+                      <strong>$15,000.00</strong>
                     </div>
-                  ));
-                })()}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 4 }}>
+                      <span>Suva Cleaning Services</span>
+                      <strong>$8,000.00</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 4 }}>
+                      <span>Fiji Security Solutions</span>
+                      <strong>$12,000.00</strong>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {dashboardRole === 'admin' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div className="stats-grid">
+                <div className="stat-card">
+                  <div className="stat-header"><span>Global SLA Compliance</span><CheckCircle2 size={16} /></div>
+                  <div className="stat-value">94.8%</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-header"><span>Total Maintenance Costs YTD</span><DollarSign size={16} /></div>
+                  <div className="stat-value">$142,500</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-header"><span>Critical System Health</span><ShieldAlert size={16} /></div>
+                  <div className="stat-value">98.2%</div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* 2. SUPPORT ISSUES & CHAT */}
+      {/* TAB 2: CONSOLE VIEW */}
       {activeTab === 'console' && (
         <div className="grid-2col" style={{ gridTemplateColumns: '1.2fr 2fr', gap: 20 }}>
-          {/* Ticket list view */}
+          
+          {/* Issue list view sidebar */}
           <div className="card-panel" style={{ padding: 0, display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--border-color)', marginBottom: 10 }}>
               <h3 style={{ fontSize: '0.95rem', margin: 0 }}>Open Issues ({openTickets.length})</h3>
@@ -573,7 +547,8 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
                 Create Issue
               </button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', maxHeight: 420 }}>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 8, overflowY: 'auto', maxHeight: 420 }}>
               {currentItems.map(ticket => {
                 const isSelected = selectedTicketId === ticket.id;
                 return (
@@ -591,510 +566,268 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                       <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--brand-color)' }}>{ticket.id}</span>
-                      <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{ticket.lastUpdated}</span>
+                      {renderSLATimer(ticket)}
                     </div>
                     <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {ticket.subject}
                     </div>
 
-                    {/* Resolved Metadata */}
-                    {(() => {
-                      const matchedTenant = tenants.find(t => t.name === ticket.tenantName || t.id === ticket.tenantName);
-                      const propName = matchedTenant ? (matchedTenant.propertyGroup || matchedTenant.propertyName) : 'Stratford Court Apartments';
-                      const addr = matchedTenant && matchedTenant.address !== 'Loading Address...' ? matchedTenant.address : 'Suva, Fiji';
-                      return (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
-                          <div>Type: <strong style={{ color: 'var(--text-primary)' }}>{ticket.category || 'Maintenance'}</strong></div>
-                          <div>Property: <strong style={{ color: 'var(--text-primary)' }}>{propName}</strong></div>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Address: {addr}</div>
-                        </div>
-                      );
-                    })()}
-                    
-                    {/* Metadata requested */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, fontSize: 9 }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Raised: {ticket.dateRaised || '2026-06-01'}</span>
-                      <span style={{ color: 'var(--text-muted)' }}>•</span>
-                      <span style={{ color: 'var(--text-secondary)' }}>{calculateAge(ticket.dateRaised || '2026-06-01')}</span>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-                      <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Tenant: {ticket.tenantName}</span>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <span className={`badge ${ticket.priority === 'high' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: 8, padding: '1px 5px' }}>
-                          {ticket.priority || 'medium'}
-                        </span>
-                        <span className={`badge ${ticket.status === 'closed' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: 8, padding: '1px 5px' }}>
-                          {ticket.status}
-                        </span>
-                      </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
+                      <div>Type: <strong style={{ color: 'var(--text-primary)' }}>{ticket.category || 'Maintenance'}</strong></div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Tenant: {ticket.tenantName}</div>
                     </div>
                   </div>
                 );
               })}
             </div>
-            {renderPaginationControls()}
+            {renderPaginationControls(localTickets.length)}
           </div>
 
-          {/* Chat thread box */}
-          <div className="card-panel" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: 460 }}>
+          {/* Thread & Details drawer panel */}
+          <div className="card-panel" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: 500 }}>
             {selectedTicket ? (
               <>
-                {/* Chat Header */}
-                <div style={{ padding: 16, borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ padding: 16, borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <h3 style={{ fontSize: '0.95rem' }}>{selectedTicket.subject}</h3>
                     <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-                      Tenant: {selectedTicket.tenantName} ({selectedTicket.propertyId}) | Age: {calculateAge(selectedTicket.dateRaised || '2026-06-01')}
+                      Tenant: {selectedTicket.tenantName} | Date: {selectedTicket.dateRaised}
                     </div>
                   </div>
                   
-                  {/* Status update controls requested */}
+                  {/* Convert controls */}
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button 
+                      className="btn btn-secondary btn-sm"
+                      style={{ padding: '5px 10px', fontSize: 10 }}
+                      onClick={() => handleConvertToMaintenance(selectedTicket)}
+                    >
+                      Convert to WO
+                    </button>
                     <select 
                       value={selectedTicket.status} 
                       onChange={(e) => handleStatusChange(selectedTicket.id, e.target.value)}
                       className="form-select"
-                      style={{ padding: '4px 8px', fontSize: 10, width: 100 }}
+                      style={{ padding: '4px 8px', fontSize: 10, width: 110 }}
                     >
                       <option value="open">Open</option>
-                      <option value="in-progress">In Progress</option>
+                      <option value="assigned">Assigned</option>
+                      <option value="in progress">In Progress</option>
                       <option value="resolved">Resolved</option>
                       <option value="closed">Closed</option>
                     </select>
-
-                    <button 
-                      className={`btn btn-sm ${selectedTicket.status === 'closed' ? 'btn-primary' : 'btn-danger'}`} 
-                      style={{ padding: '5px 10px', fontSize: 10 }}
-                      onClick={() => handleToggleClose(selectedTicket.id)}
-                    >
-                      {selectedTicket.status === 'closed' ? 'Reopen Ticket' : 'Close Ticket'}
-                    </button>
                   </div>
                 </div>
 
-                {/* Messages List */}
-                <div style={{ flex: 1, padding: 18, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {selectedTicket.messages.map((msg, index) => {
-                    const isAdmin = msg.sender === 'admin';
-                    return (
-                      <div 
-                        key={index}
-                        style={{ 
-                          alignSelf: isAdmin ? 'flex-end' : 'flex-start',
-                          maxWidth: '75%',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: isAdmin ? 'flex-end' : 'flex-start'
-                        }}
-                      >
-                        <div 
-                          style={{ 
-                            padding: '8px 12px', 
-                            borderRadius: 'var(--radius-md)', 
-                            backgroundColor: isAdmin ? 'var(--brand-color)' : 'var(--bg-tertiary)',
-                            color: isAdmin ? '#000000' : 'var(--text-primary)',
-                            fontWeight: 500,
-                            fontSize: '0.825rem',
-                            border: isAdmin ? 'none' : '1px solid var(--border-color)'
-                          }}
-                        >
-                          {msg.text}
-                        </div>
-                        <span style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>
-                          {msg.timestamp}
-                        </span>
-                      </div>
-                    );
-                  })}
+                {/* Sub Tab Selector for Thread Details */}
+                <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-tertiary)' }}>
+                  {['public', 'internal', 'emails', 'history'].map(t => (
+                    <button 
+                      key={t}
+                      onClick={() => setCommTab(t)}
+                      style={{ 
+                        flex: 1, 
+                        padding: '10px 0', 
+                        fontSize: 11, 
+                        fontWeight: 600, 
+                        border: 'none', 
+                        background: 'none', 
+                        color: commTab === t ? 'var(--brand-color)' : 'var(--text-secondary)',
+                        borderBottom: commTab === t ? '2px solid var(--brand-color)' : 'none',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {t.toUpperCase()}
+                    </button>
+                  ))}
                 </div>
 
-                {/* Input reply form with Mic icon and File Attachment */}
-                <form onSubmit={handleSendAdminMessage} style={{ padding: 12, borderTop: '1px solid var(--border-color)', display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <button 
-                    type="button" 
-                    onClick={() => toggleSpeechRecognition('admin')}
-                    className={`btn ${isListening ? 'btn-danger' : 'btn-secondary'}`}
-                    style={{ padding: 10, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    title="Speak message (Speech-to-Text)"
-                  >
-                    {isListening ? <MicOff size={15} style={{ animation: 'pulse 1s infinite' }} /> : <Mic size={15} />}
-                  </button>
+                {/* Sub Tab Content */}
+                <div style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {commTab === 'public' && (
+                    selectedTicket.messages.filter(m => m.sender !== 'system').map((msg, index) => (
+                      <div key={index} style={{ alignSelf: msg.sender === 'admin' ? 'flex-end' : 'flex-start', maxWidth: '75%' }}>
+                        <div style={{ padding: '8px 12px', borderRadius: 8, backgroundColor: msg.sender === 'admin' ? 'var(--brand-color)' : 'var(--bg-secondary)', color: msg.sender === 'admin' ? '#000' : 'var(--text-primary)', fontSize: 12 }}>
+                          {msg.text}
+                        </div>
+                        <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', textAlign: msg.sender === 'admin' ? 'right' : 'left', marginTop: 2 }}>{msg.timestamp}</span>
+                      </div>
+                    ))
+                  )}
 
-                  <label 
-                    style={{ 
-                      padding: 10, 
-                      borderRadius: 8, 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
-                      cursor: 'pointer',
-                      background: 'var(--bg-secondary)',
-                      border: '1px solid var(--border-color)',
-                      color: 'var(--text-secondary)',
-                      transition: 'all 0.15s ease'
-                    }}
-                    title="Attach File"
-                    className="menu-item-hover"
-                  >
-                    <Paperclip size={15} />
+                  {commTab === 'internal' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ padding: 10, background: 'rgba(251,191,36,0.1)', borderLeft: '4px solid #fbbf24', borderRadius: 4, fontSize: 11 }}>
+                        <strong>Note by PM (2026-06-16):</strong> Confirmed leakage is inside partition wall. Called local plumber.
+                      </div>
+                    </div>
+                  )}
+
+                  {commTab === 'emails' && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      No emails synchronized for this ticket.
+                    </div>
+                  )}
+
+                  {commTab === 'history' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingLeft: 10, borderLeft: '2px solid var(--border-color)' }}>
+                      <div style={{ fontSize: 11 }}>
+                        <strong style={{ color: 'var(--brand-color)' }}>Created</strong> - 2026-06-16 20:25:00
+                      </div>
+                      <div style={{ fontSize: 11 }}>
+                        <strong>Status Changed</strong> to Open - 2026-06-16 20:25:10
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Input text controls */}
+                {commTab === 'public' && (
+                  <form onSubmit={handleSendAdminMessage} style={{ padding: 12, borderTop: '1px solid var(--border-color)', display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button 
+                      type="button" 
+                      onClick={() => toggleSpeechRecognition('admin')}
+                      className={`btn ${isListening ? 'btn-danger' : 'btn-secondary'}`}
+                      style={{ padding: 10, borderRadius: 8 }}
+                    >
+                      {isListening ? <MicOff size={15} /> : <Mic size={15} />}
+                    </button>
                     <input 
-                      type="file" 
-                      style={{ display: 'none' }} 
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files[0]) {
-                          const file = e.target.files[0];
-                          setMessageText(prev => prev ? prev + ` [Attached File: ${file.name}]` : `[Attached File: ${file.name}]`);
-                        }
-                      }}
+                      type="text" 
+                      value={messageText}
+                      onChange={(e) => setMessageText(e.target.value)}
+                      placeholder="Type public comment response..." 
+                      className="form-input" 
+                      style={{ flex: 1 }}
                     />
-                  </label>
-
-                  <input 
-                    type="text" 
-                    value={messageText}
-                    onChange={(e) => setMessageText(e.target.value)}
-                    placeholder={isListening ? "Listening to speech..." : "Type response to tenant..."} 
-                    className="form-input" 
-                    style={{ flex: 1 }}
-                  />
-                  <button type="submit" className="btn btn-primary" style={{ padding: '10px 14px' }}>
-                    <Send size={14} />
-                  </button>
-                </form>
+                    <button type="submit" className="btn btn-primary" style={{ padding: '10px 14px' }}>
+                      <Send size={14} />
+                    </button>
+                  </form>
+                )}
               </>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, color: 'var(--text-muted)' }}>
                 <MessageSquare size={36} style={{ marginBottom: 12 }} />
-                <p>Select a ticket thread from the left menu to view correspondence.</p>
+                <p>Select a ticket to review communication logs.</p>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* 3. TINNI AI CHAT VIEW */}
+      {/* TAB 3: COPILOT TINNI */}
       {activeTab === 'tinni' && (
         <div className="card-panel" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: 480, maxWidth: 800, margin: '0 auto' }}>
-          {/* Header */}
           <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--bg-accent-alpha)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--brand-color)' }}>
+              <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--bg-accent-alpha)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Sparkles size={16} style={{ color: 'var(--brand-color)' }} />
               </div>
               <div>
-                <strong style={{ fontSize: 13, color: 'var(--text-primary)' }}>AI Agent Tinni</strong>
-                <span style={{ display: 'block', fontSize: 10, color: 'var(--color-success)' }}>● Copilot Active</span>
+                <strong>Tinni AI Copilot</strong>
+                <span style={{ display: 'block', fontSize: 10, color: 'var(--color-success)' }}>● Agent Active</span>
               </div>
             </div>
-            <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: 10 }} onClick={() => setTinniMessages([{ sender: 'tinni', text: "Chat history cleared. How can I help you today?", timestamp: 'Just now' }])}>
-              <RefreshCw size={11} /> Clear history
-            </button>
           </div>
 
-          {/* Messages */}
           <div style={{ flex: 1, padding: 18, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {tinniMessages.map((msg, index) => {
               const isTinni = msg.sender === 'tinni';
               return (
-                <div 
-                  key={index}
-                  style={{ 
-                    alignSelf: isTinni ? 'flex-start' : 'flex-end',
-                    maxWidth: '75%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: isTinni ? 'flex-start' : 'flex-end'
-                  }}
-                >
-                  <div 
-                    style={{ 
-                      padding: '10px 14px', 
-                      borderRadius: 'var(--radius-md)', 
-                      backgroundColor: isTinni ? 'var(--bg-tertiary)' : 'var(--brand-color)',
-                      color: isTinni ? 'var(--text-primary)' : '#000000',
-                      fontSize: '0.85rem',
-                      border: isTinni ? '1px solid var(--border-color)' : 'none',
-                      lineHeight: 1.4
-                    }}
-                  >
+                <div key={index} style={{ alignSelf: isTinni ? 'flex-start' : 'flex-end', maxWidth: '75%' }}>
+                  <div style={{ padding: '10px 14px', borderRadius: 8, backgroundColor: isTinni ? 'var(--bg-tertiary)' : 'var(--brand-color)', color: isTinni ? 'var(--text-primary)' : '#000', fontSize: 13 }}>
                     {msg.text}
                   </div>
-                  <span style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>
-                    {msg.timestamp}
-                  </span>
                 </div>
               );
             })}
-            
-            {isTinniTyping && (
-              <div style={{ alignSelf: 'flex-start', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', padding: '8px 14px', borderRadius: 8, fontSize: 11, color: 'var(--text-muted)' }}>
-                Tinni is thinking...
-              </div>
-            )}
           </div>
 
-          {/* Input form */}
           <form onSubmit={handleSendTinni} style={{ padding: 12, borderTop: '1px solid var(--border-color)', display: 'flex', gap: 8 }}>
-            <button 
-              type="button" 
-              onClick={() => toggleSpeechRecognition('tinni')}
-              className={`btn ${isListening ? 'btn-danger' : 'btn-secondary'}`}
-              style={{ padding: 10, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              title="Speak message (Speech-to-Text)"
-            >
-              {isListening ? <MicOff size={15} /> : <Mic size={15} />}
-            </button>
             <input 
               type="text" 
               value={tinniInput}
               onChange={(e) => setTinniInput(e.target.value)}
-              placeholder={isListening ? "Listening to voice input..." : "Ask Tinni about leases, billing codes, rules..."} 
-              className="form-input" 
+              placeholder="Ask Tinni anything..."
+              className="form-input"
               style={{ flex: 1 }}
             />
-            <button type="submit" className="btn btn-primary" style={{ padding: '10px 14px' }}>
-              <Send size={14} />
-            </button>
+            <button type="submit" className="btn btn-primary">Send</button>
           </form>
-
-          {/* Interaction Logs */}
-          <div style={{ padding: '10px 18px', borderTop: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.01)', fontSize: 11 }}>
-            <strong style={{ color: 'var(--brand-color)', display: 'block', marginBottom: 6 }}>Recorded Interaction Logs</strong>
-            <div style={{ maxHeight: 80, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {tinniMessages.filter(m => m.sender === 'tenant').map((m, idx) => (
-                <div key={idx} style={{ color: 'var(--text-secondary)' }}>
-                  [{m.timestamp || 'Just now'}] User Query: "{m.text}"
-                </div>
-              ))}
-              {tinniMessages.filter(m => m.sender === 'tenant').length === 0 && (
-                <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No inquiries logged yet.</div>
-              )}
-            </div>
-          </div>
         </div>
       )}
-      {/* CREATE ISSUE MODAL */}
+
+      {/* CREATE TICKET MODAL */}
       {showCreateModal && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: 550 }}>
             <div className="modal-header">
-              <h3>Create Issue</h3>
+              <h3>Create Enterprise Ticket</h3>
               <button onClick={() => setShowCreateModal(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 20 }}>×</button>
             </div>
-             <form onSubmit={handleCreateIssueSubmit}>
-              <div className="modal-body">
-                {errorMsg && (
-                  <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--color-danger)', borderRadius: 6, padding: '10px 14px', color: 'var(--color-danger)', fontSize: 12, marginBottom: 14 }}>
-                    {errorMsg}
-                  </div>
-                )}
+            <form onSubmit={handleCreateIssueSubmit}>
+              <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
                 <div className="form-group">
                   <label className="form-label">Subject</label>
-                  <input 
-                    type="text" 
-                    value={issueSubject} 
-                    onChange={(e) => setIssueSubject(e.target.value)} 
-                    placeholder="e.g. Grinding noise in Lift B" 
-                    className="form-input" 
-                    required 
-                    disabled={submitting}
-                  />
+                  <input type="text" value={issueSubject} onChange={(e) => setIssueSubject(e.target.value)} className="form-input" required />
                 </div>
 
                 <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
                   <div className="form-group">
-                    <label className="form-label">Customer (Tenant)</label>
-                    <select 
-                      value={issueCustomer} 
-                      onChange={(e) => setIssueCustomer(e.target.value)} 
-                      className="form-select"
-                      required
-                      disabled={submitting}
-                    >
-                      <option value="">-- Select Tenant --</option>
-                      {tenants.map(t => (
-                        <option key={t.id} value={t.id}>{t.name} ({t.propertyName})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Raised By (Email)</label>
-                    <input 
-                      type="email" 
-                      value={issueRaisedBy} 
-                      onChange={(e) => setIssueRaisedBy(e.target.value)} 
-                      placeholder="e.g. tenant@example.com" 
-                      className="form-input" 
-                      required 
-                      disabled={submitting}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
-                  <div className="form-group">
-                    <label className="form-label">Priority</label>
-                    <select 
-                      value={issuePriority} 
-                      onChange={(e) => setIssuePriority(e.target.value)} 
-                      className="form-select"
-                      disabled={submitting}
-                    >
-                      <option value="Low">Low</option>
-                      <option value="Medium">Medium</option>
-                      <option value="High">High</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Status</label>
-                    <select 
-                      value={issueStatus} 
-                      onChange={(e) => setIssueStatus(e.target.value)} 
-                      className="form-select"
-                      disabled={submitting}
-                    >
-                      <option value="Open">Open</option>
-                      <option value="Replied">Replied</option>
-                      <option value="On Hold">On Hold</option>
-                      <option value="Resolved">Resolved</option>
-                      <option value="Closed">Closed</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Company</label>
-                  <input 
-                    type="text" 
-                    value={issueCompany} 
-                    onChange={(e) => setIssueCompany(e.target.value)} 
-                    className="form-input" 
-                    required 
-                    disabled={submitting}
-                  />
-                </div>
-
-                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
-                  <div className="form-group">
-                    <label className="form-label">Booking Number</label>
-                    <select
-                      value={selectedBookingNumber}
-                      onChange={(e) => setSelectedBookingNumber(e.target.value)}
-                      className="form-select"
-                      disabled={submitting || loadingBookings}
-                    >
-                      <option value="">{loadingBookings ? "Loading bookings..." : "-- Link to Booking --"}</option>
-                      {bookingOptions
-                        .filter(opt => !issueCustomer || !opt.customer || opt.customer.toLowerCase().includes(issueCustomer.toLowerCase()) || issueCustomer.toLowerCase().includes(opt.customer.toLowerCase()))
-                        .map(opt => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Issue List Type</label>
-                    <select
-                      value={selectedIssueList}
-                      onChange={(e) => setSelectedIssueList(e.target.value)}
-                      className="form-select"
-                      disabled={submitting}
-                    >
+                    <label className="form-label">Category</label>
+                    <select value={selectedIssueList} onChange={(e) => setSelectedIssueList(e.target.value)} className="form-select">
                       {Object.keys(MOCK_ISSUE_LISTS).map(lstName => (
                         <option key={lstName} value={lstName}>{lstName}</option>
                       ))}
                     </select>
                   </div>
+                  <div className="form-group">
+                    <label className="form-label">Subcategory</label>
+                    <select value={issueSubcategory} onChange={(e) => setIssueSubcategory(e.target.value)} className="form-select">
+                      <option value="Leakage">Leakage</option>
+                      <option value="Wiring">Wiring</option>
+                      <option value="Heating">Heating</option>
+                      <option value="Pest">Pest Infestation</option>
+                    </select>
+                  </div>
                 </div>
 
-                {/* Sub Issue List Table from selection */}
-                <div style={{ marginTop: 10, marginBottom: 14 }}>
-                  <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>Issue Selection Table</h4>
-                  <div style={{ border: '1px solid var(--border-color)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-secondary)' }}>
-                    <table className="custom-table" style={{ margin: 0, fontSize: 12 }}>
-                      <thead>
-                        <tr>
-                          <th style={{ width: 40, textAlign: 'center' }}>
-                            <input 
-                              type="checkbox" 
-                              checked={issueListRows.length > 0 && issueListRows.every(r => r.selected)}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                setIssueListRows(issueListRows.map(r => ({ ...r, selected: checked })));
-                              }}
-                            />
-                          </th>
-                          <th style={{ width: 50, textAlign: 'center' }}>No.</th>
-                          <th style={{ width: 70, textAlign: 'center' }}>Agreed</th>
-                          <th>Issue</th>
-                          <th style={{ width: 50, textAlign: 'center' }}><Settings size={14} style={{ color: 'var(--text-muted)' }} /></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {issueListRows.map((row, idx) => (
-                          <tr key={idx} style={{ backgroundColor: row.selected ? 'var(--bg-accent-alpha)' : '' }}>
-                            <td style={{ textAlign: 'center' }}>
-                              <input 
-                                type="checkbox" 
-                                checked={row.selected}
-                                onChange={(e) => {
-                                  const checked = e.target.checked;
-                                  setIssueListRows(issueListRows.map((r, i) => i === idx ? { ...r, selected: checked } : r));
-                                }}
-                              />
-                            </td>
-                            <td style={{ textAlign: 'center', fontWeight: 600 }}>{row.no}</td>
-                            <td style={{ textAlign: 'center' }}>
-                              <input 
-                                type="checkbox" 
-                                checked={row.agreed}
-                                onChange={(e) => {
-                                  const checked = e.target.checked;
-                                  // Auto-select the row if Agreed is checked
-                                  setIssueListRows(issueListRows.map((r, i) => i === idx ? { ...r, agreed: checked, selected: checked ? true : r.selected } : r));
-                                }}
-                              />
-                            </td>
-                            <td style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{row.issue}</td>
-                            <td style={{ textAlign: 'center' }}>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const edited = prompt("Edit Issue Text:", row.issue);
-                                  if (edited !== null && edited.trim() !== "") {
-                                    setIssueListRows(issueListRows.map((r, i) => i === idx ? { ...r, issue: edited } : r));
-                                  }
-                                }}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--brand-color)' }}
-                              >
-                                <Pencil size={12} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
+                  <div className="form-group">
+                    <label className="form-label">Customer (Tenant)</label>
+                    <select value={issueCustomer} onChange={(e) => setIssueCustomer(e.target.value)} className="form-select" required>
+                      <option value="">-- Select Tenant --</option>
+                      {tenants.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Raised By (Email)</label>
+                    <input type="email" value={issueRaisedBy} onChange={(e) => setIssueRaisedBy(e.target.value)} className="form-input" required />
+                  </div>
+                </div>
+
+                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
+                  <div className="form-group">
+                    <label className="form-label">Preferred Visit Date</label>
+                    <input type="date" value={preferredVisitDate} onChange={(e) => setPreferredVisitDate(e.target.value)} className="form-input" />
+                  </div>
+                  <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 24 }}>
+                    <input type="checkbox" checked={isEmergency} onChange={(e) => setIsEmergency(e.target.checked)} id="emergencyCheck" />
+                    <label htmlFor="emergencyCheck" style={{ fontWeight: 600, color: 'var(--color-danger)' }}>Mark as Emergency (Critical SLA)</label>
                   </div>
                 </div>
 
                 <div className="form-group">
                   <label className="form-label">Description</label>
-                  <textarea 
-                    value={issueDescription} 
-                    onChange={(e) => setIssueDescription(e.target.value)} 
-                    rows="3" 
-                    placeholder="Enter issue details..." 
-                    className="form-textarea" 
-                    disabled={submitting}
-                  />
+                  <textarea value={issueDescription} onChange={(e) => setIssueDescription(e.target.value)} className="form-input" rows="3" />
                 </div>
               </div>
-
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowCreateModal(false)} disabled={submitting}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={submitting}>
-                  {submitting ? 'Syncing with ERPNext...' : 'Submit'}
-                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowCreateModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Create Ticket</button>
               </div>
             </form>
           </div>
