@@ -873,8 +873,58 @@ export default function App() {
   };
 
   // Handlers
-  const handleAddProperty = (newProp) => {
-    setProperties([...properties, newProp]);
+  const handleAddProperty = async (newProp) => {
+    if (ERPNEXT_CONFIG) {
+      try {
+        const payload = {
+          name: newProp.name,
+          property_group_name: newProp.name,
+          land_and_building_type: newProp.type.charAt(0).toUpperCase() + newProp.type.slice(1),
+          locality: newProp.address,
+          no_of_floors: Math.ceil(newProp.unitsCount / 4) || 1,
+          property_area: newProp.area,
+          listed_online: 1
+        };
+
+        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Property%20Group`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          const json = await res.json();
+          const doc = json.data || json;
+          
+          const addedProp = {
+            id: doc.name || newProp.name,
+            name: doc.name || newProp.name,
+            type: newProp.type,
+            land_and_building_type: doc.land_and_building_type || newProp.type,
+            address: doc.locality || newProp.address,
+            unitsCount: newProp.unitsCount,
+            rent: newProp.rent,
+            area: newProp.area,
+            listedOnline: true,
+            occupancy: 0
+          };
+          
+          setProperties(prev => [...prev, addedProp]);
+          return addedProp;
+        } else {
+          console.warn('Failed to save Property Group in ERPNext, saving locally:', res.statusText);
+          setProperties(prev => [...prev, newProp]);
+        }
+      } catch (err) {
+        console.warn('Error connecting to ERPNext server, saving locally:', err);
+        setProperties(prev => [...prev, newProp]);
+      }
+    } else {
+      setProperties(prev => [...prev, newProp]);
+    }
   };
 
   const handleToggleListOnline = (propId) => {
