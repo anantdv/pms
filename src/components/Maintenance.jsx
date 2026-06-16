@@ -53,6 +53,9 @@ export default function Maintenance({
   const [schedAssignedTech, setSchedAssignedTech] = useState('');
   const [schedVisitStatus, setSchedVisitStatus] = useState('Pending');
 
+  const [submittingSchedule, setSubmittingSchedule] = useState(false);
+  const [scheduleStatusMessage, setScheduleStatusMessage] = useState(null);
+
   // Work Order Creation Form States
   const [woPriority, setWoPriority] = useState('Medium');
   const [woCategory, setWoCategory] = useState('Plumbing');
