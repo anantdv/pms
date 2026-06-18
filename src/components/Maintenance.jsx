@@ -14,6 +14,7 @@ export default function Maintenance({
   onUpdateVisitStatus, 
   erpnextConfig,
   employees = [],
+  vendors = [],
   onAssignResource,
   onCreateVisit
 }) {
@@ -77,74 +78,59 @@ export default function Maintenance({
   // Database stores
   const [localSchedules, setLocalSchedules] = useState([]);
   
-  const [workOrders, setWorkOrders] = useState([
-    {
-      id: "WO-2026-0001",
-      relatedTicket: "SUP-728",
-      property: "Stratford Court Apartments",
-      unit: "Flat 4B",
-      category: "Plumbing",
-      technician: "Michael Chang",
-      vendor: "Pacific Elevators Ltd",
-      estHours: 6,
-      estCost: 6500,
-      actualCost: 0,
-      status: "Pending Approval",
-      sla: "High",
-      dueDate: "2026-06-19",
-      consumedItems: []
-    },
-    {
-      id: "WO-2026-0002",
-      relatedTicket: "SUP-729",
-      property: "Estate Galleria Mall",
-      unit: "Suite 102",
-      category: "Electrical",
-      technician: "Sarah Connor",
-      vendor: "Fiji Security Solutions",
-      estHours: 3,
-      estCost: 1200,
-      actualCost: 1200,
-      status: "In Progress",
-      sla: "Critical",
-      dueDate: "2026-06-17",
-      consumedItems: [{ item: "Copper Wiring Kit", qty: 2, cost: 150 }]
-    }
-  ]);
+  const [workOrders, setWorkOrders] = useState([]);
 
-  const [techProfiles, setTechProfiles] = useState([
-    { id: "EMP-005", name: "Michael Chang", skill: "Plumbing", certs: "Master Plumber Class-A", availability: "Available", activeJobs: 1, phone: "+679 881 2021", email: "mchang@carpenters.com.fj", img: "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=120" },
-    { id: "EMP-007", name: "Sarah Connor", skill: "Electrical", certs: "High-Voltage certified", availability: "Available", activeJobs: 2, phone: "+679 992 4812", email: "sconnor@carpenters.com.fj", img: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=120" },
-    { id: "EMP-012", name: "John Miller", skill: "HVAC", certs: "EPA Universal certified", availability: "On Leave", activeJobs: 0, phone: "+679 773 1928", email: "jmiller@carpenters.com.fj", img: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=120" }
-  ]);
+  const [techProfiles, setTechProfiles] = useState([]);
 
-  const [vendorDir, setVendorDir] = useState([
-    { id: "SUP-0001", name: "Pacific Elevators Ltd", group: "Local", type: "Technical Services", rating: 4.8, quotesCount: 5, phone: "+679 330 1199", email: "service@pacificelevators.com", address: "14 Walu Bay Road, Suva, Fiji" },
-    { id: "SUP-0002", name: "Suva Cleaning Services", group: "Local", type: "Cleaning", rating: 4.5, quotesCount: 2, phone: "+679 331 4455", email: "cleanup@suvaclean.com", address: "24 Victoria Parade, Suva, Fiji" },
-    { id: "SUP-0003", name: "Fiji Security Solutions", group: "Local", type: "Security", rating: 4.7, quotesCount: 8, phone: "+679 338 9988", email: "alerts@fijisecurity.com", address: "88 Laucala Bay Road, Suva, Fiji" }
-  ]);
+  const [vendorDir, setVendorDir] = useState([]);
 
-  const [assetsList, setAssetsList] = useState([
-    { id: "AST-0091", name: "Emergency Power Generator 80KVA", serial: "G-88129A", warranty: "2028-12-31", amc: "Cummins Fiji", breakdownCount: 1, propertyId: "PROP-2041" },
-    { id: "AST-0092", name: "Passenger Elevator Block B", serial: "E-10022", warranty: "Expired", amc: "Otis Elevators", breakdownCount: 3, propertyId: "PROP-2041" }
-  ]);
+  const [assetsList, setAssetsList] = useState([]);
 
-  const [stockItems, setStockItems] = useState([
-    { code: "31AD", name: "Submersible Pump 1HP", qty: 5, unitCost: 450 },
-    { code: "EL-CABLE", name: "Copper Wiring Kit 50m", qty: 15, unitCost: 150 },
-    { code: "HV-FIL", name: "Heavy Duty Air Filter B", qty: 30, unitCost: 85 }
-  ]);
+  const [stockItems, setStockItems] = useState([]);
 
   useEffect(() => {
     if (schedules && schedules.length > 0) {
       setLocalSchedules(schedules);
     } else {
-      setLocalSchedules([
-        { name: "MS-0001", customer: "CUST-0001", customer_name: "Biswajit Maity", transaction_date: "2026-06-16", custom_property: "PROP-2041", type: "PM Schedule", status: "Pending", items: [{ item_code: "Elevator Service", start_date: "2026-06-16", end_date: "2026-07-16", periodicity: "Weekly", description: "Regular monthly check" }] },
-        { name: "MS-0002", customer: "CUST-0002", customer_name: "Jane Doe", transaction_date: "2026-06-16", custom_property: "PROP-9910", type: "Breakdown", status: "In Progress", items: [{ item_code: "Lobby Leak", start_date: "2026-06-16", end_date: "2026-06-17", periodicity: "Weekly", description: "Pipe replacement" }] }
-      ]);
+      setLocalSchedules([]);
     }
   }, [schedules]);
+
+  useEffect(() => {
+    if (employees && employees.length > 0) {
+      setTechProfiles(employees.map(emp => ({
+        id: emp.id || emp.name,
+        name: emp.name,
+        skill: emp.department || 'General Maintenance',
+        certs: emp.designation || 'Technician',
+        availability: emp.status === 'Active' ? 'Available' : 'On Leave',
+        activeJobs: 0,
+        phone: emp.phone || '+679 000 0000',
+        email: emp.email || 'tech@carpenterestate.org',
+        img: emp.image || ''
+      })));
+    } else {
+      setTechProfiles([]);
+    }
+  }, [employees]);
+
+  useEffect(() => {
+    if (vendors && vendors.length > 0) {
+      setVendorDir(vendors.map(v => ({
+        id: v.id,
+        name: v.name,
+        group: v.supplier_group || 'Local',
+        type: v.supplier_type || 'Services',
+        rating: 4.5,
+        quotesCount: 0,
+        phone: v.phone || '+679 000 0000',
+        email: v.email || 'vendor@carpenterestate.org',
+        address: v.address || 'Fiji'
+      })));
+    } else {
+      setVendorDir([]);
+    }
+  }, [vendors]);
 
   useEffect(() => {
     if (preSelectedProperty) {

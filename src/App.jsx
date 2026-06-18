@@ -484,26 +484,14 @@ export default function App() {
               };
             }));
           } else {
-            setOwners([
-              { id: 'SUP-0001', name: 'Pacific Elevators Ltd', email: 'service@pacelevators.com', phone: '+679 331 2244', address: '12 Argo St, Suva', supplier_type: 'Technical Services', supplier_group: 'Local', share: 40, lastPayout: 15000, properties: ['Stratford Court Apartments'] },
-              { id: 'SUP-0002', name: 'Suva Cleaning Services', email: 'info@suvaclean.com', phone: '+679 330 9988', address: '45 Victoria Parade, Suva', supplier_type: 'Cleaning', supplier_group: 'Local', share: 30, lastPayout: 8000, properties: ['Estate Galleria Mall'] },
-              { id: 'SUP-0003', name: 'Fiji Security Solutions', email: 'patrol@fijisecurity.com', phone: '+679 338 5500', address: '88 Laucala Bay Rd, Suva', supplier_type: 'Security', supplier_group: 'Local', share: 30, lastPayout: 12000, properties: ['Carpenters Row Commercial'] }
-            ]);
+            setOwners([]);
           }
         } else {
-          setOwners([
-            { id: 'SUP-0001', name: 'Pacific Elevators Ltd', email: 'service@pacelevators.com', phone: '+679 331 2244', address: '12 Argo St, Suva', supplier_type: 'Technical Services', supplier_group: 'Local', share: 40, lastPayout: 15000, properties: ['Stratford Court Apartments'] },
-            { id: 'SUP-0002', name: 'Suva Cleaning Services', email: 'info@suvaclean.com', phone: '+679 330 9988', address: '45 Victoria Parade, Suva', supplier_type: 'Cleaning', supplier_group: 'Local', share: 30, lastPayout: 8000, properties: ['Estate Galleria Mall'] },
-            { id: 'SUP-0003', name: 'Fiji Security Solutions', email: 'patrol@fijisecurity.com', phone: '+679 338 5500', address: '88 Laucala Bay Rd, Suva', supplier_type: 'Security', supplier_group: 'Local', share: 30, lastPayout: 12000, properties: ['Carpenters Row Commercial'] }
-          ]);
+          setOwners([]);
         }
       } catch (err) {
-        console.warn('ERPNext Supplier fetch failed, using fallback mock data:', err);
-        setOwners([
-          { id: 'SUP-0001', name: 'Pacific Elevators Ltd', email: 'service@pacelevators.com', phone: '+679 331 2244', address: '12 Argo St, Suva', supplier_type: 'Technical Services', supplier_group: 'Local', share: 40, lastPayout: 15000, properties: ['Stratford Court Apartments'] },
-          { id: 'SUP-0002', name: 'Suva Cleaning Services', email: 'info@suvaclean.com', phone: '+679 330 9988', address: '45 Victoria Parade, Suva', supplier_type: 'Cleaning', supplier_group: 'Local', share: 30, lastPayout: 8000, properties: ['Estate Galleria Mall'] },
-          { id: 'SUP-0003', name: 'Fiji Security Solutions', email: 'patrol@fijisecurity.com', phone: '+679 338 5500', address: '88 Laucala Bay Rd, Suva', supplier_type: 'Security', supplier_group: 'Local', share: 30, lastPayout: 12000, properties: ['Carpenters Row Commercial'] }
-        ]);
+        console.warn('ERPNext Supplier fetch failed:', err);
+        setOwners([]);
       }
 
       // 5. Fetch Issues for Helpdesk Support
@@ -770,9 +758,9 @@ export default function App() {
 
       setDashboardStats({
         totalProperties: totalPropsCount,
-        occupancyRate: occupancyRatePct || 94.2,
-        monthlyRevenue: parseFloat((currentMonthRevenue / 1000).toFixed(1)) || 285.5,
-        pendingMaintenance: pendingMaintCount || 2
+        occupancyRate: occupancyRatePct || 0,
+        monthlyRevenue: parseFloat((currentMonthRevenue / 1000).toFixed(1)) || 0,
+        pendingMaintenance: pendingMaintCount || 0
       });
       } finally {
         setDataLoading(false);
@@ -2026,6 +2014,7 @@ export default function App() {
             onUpdateVisitStatus={handleUpdateVisitStatus} 
             erpnextConfig={ERPNEXT_CONFIG} 
             employees={employees}
+            vendors={owners}
             onAssignResource={handleAssignScheduleResource}
             onCreateVisit={handleCreateMaintenanceVisit}
           />
