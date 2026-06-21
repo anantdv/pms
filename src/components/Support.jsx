@@ -96,22 +96,22 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
         return;
       }
       try {
-        const res = await fetch(`${erpnextConfig.url}/api/resource/Communication?filters=${encodeURIComponent(JSON.stringify([
+        const res = await fetch(`${erpnextConfig.url}/api/resource/Comment?filters=${encodeURIComponent(JSON.stringify([
           ['reference_doctype', '=', 'Issue'],
           ['reference_name', '=', selectedTicketId]
         ]))}&fields=${encodeURIComponent(JSON.stringify([
-          'name', 'sender', 'content', 'creation', 'is_internal'
+          'name', 'comment_by', 'content', 'creation', 'is_internal'
         ]))}&limit_page_length=100`, {
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' }
         });
         if (res.ok) {
           const json = await res.json();
-          const comms = json.data || [];
-          const fetchedMessages = comms.map(c => {
+          const commentsList = json.data || [];
+          const fetchedMessages = commentsList.map(c => {
             const contentClean = c.content ? c.content.replace(/<[^>]*>/g, '') : '';
             return {
-              sender: c.sender === 'devteam@anantdv.com' || c.sender === 'admin' ? 'admin' : 'tenant',
+              sender: c.comment_by === 'devteam@anantdv.com' || c.comment_by === 'admin' ? 'admin' : 'tenant',
               text: contentClean,
               timestamp: c.creation ? c.creation.split('.')[0] : 'Just now',
               is_internal: c.is_internal === 1 || c.is_internal === true
@@ -128,7 +128,7 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
           }));
         }
       } catch (err) {
-        console.warn('Failed to fetch communications:', err);
+        console.warn('Failed to fetch comments:', err);
       }
     };
     fetchComments();

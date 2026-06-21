@@ -1331,7 +1331,7 @@ export default function App() {
           }
         }
 
-        await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Communication`, {
+        await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Comment`, {
           method: 'POST',
           credentials: 'include',
           headers: {
@@ -1339,12 +1339,11 @@ export default function App() {
             'X-Frappe-CSRF-Token': getCsrfToken()
           },
           body: JSON.stringify({
-            communication_type: 'Comment',
             comment_type: 'Comment',
             reference_doctype: 'Issue',
             reference_name: ticketId,
             content: finalCommentText,
-            sender: 'devteam@anantdv.com',
+            comment_by: 'devteam@anantdv.com',
             is_internal: message.isInternal ? 1 : 0
           })
         });
