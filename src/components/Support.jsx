@@ -280,11 +280,17 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
 
     if (erpnextConfig && erpnextConfig.url) {
       try {
+        const ticket = localTickets.find(t => t.id === ticketId);
+        const payload = {
+          status: displayStatus,
+          booking_number: ticket?.booking_number || 'BOOKING-00222',
+          main_issues: ticket?.main_issues || 'Utilities & Infrastructure Issues List'
+        };
         await fetch(`${erpnextConfig.url}/api/resource/Issue/${ticketId}`, {
           method: 'PUT',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: displayStatus })
+          body: JSON.stringify(payload)
         });
       } catch (err) {
         console.warn('Failed to sync status change to ERPNext:', err);

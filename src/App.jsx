@@ -497,7 +497,7 @@ export default function App() {
 
       // 5. Fetch Issues for Helpdesk Support
       try {
-        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Issue?fields=%5B%22name%22%2C%22subject%22%2C%22customer%22%2C%22customer_name1%22%2C%22customer_email%22%2C%22status%22%2C%22priority%22%2C%22date%22%5D`, {
+        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Issue?fields=%5B%22name%22%2C%22subject%22%2C%22customer%22%2C%22customer_name1%22%2C%22customer_email%22%2C%22status%22%2C%22priority%22%2C%22date%22%2C%22booking_number%22%2C%22main_issues%22%5D`, {
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json'
@@ -523,7 +523,9 @@ export default function App() {
                 lastUpdated: 'Just now',
                 dateRaised: issue.date || '2026-06-01',
                 priority: finalPriority,
-                category: categoriesList[index % categoriesList.length],
+                booking_number: issue.booking_number,
+                main_issues: issue.main_issues,
+                category: issue.main_issues || categoriesList[index % categoriesList.length],
                 messages: [
                   { sender: 'tenant', text: issue.subject || 'Please look into this issue.', timestamp: '10:00 AM' }
                 ]

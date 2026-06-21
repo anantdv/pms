@@ -182,7 +182,7 @@ export default function Maintenance({
     if (!erpnextConfig || !erpnextConfig.url) return;
     const fetchWorkOrders = async () => {
       try {
-        const res = await fetch(`${erpnextConfig.url}/api/resource/Task?fields=%5B%22name%22%2C%22subject%22%2C%22status%22%2C%22description%22%2C%22priority%22%2C%22exp_start_date%22%2C%22exp_end_date%22%2C%22custom_property%22%2C%22custom_technician%22%2C%22custom_vendor%22%2C%22custom_estimated_cost%22%2C%22custom_maintenance_schedule%22%2C%22custom_asset%22%5D&limit_page_length=200`, {
+        const res = await fetch(`${erpnextConfig.url}/api/resource/Task?fields=%5B%22name%22%2C%22subject%22%2C%22status%22%2C%22description%22%2C%22priority%22%2C%22exp_start_date%22%2C%22exp_end_date%22%5D&limit_page_length=200`, {
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json'
