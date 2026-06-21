@@ -113,6 +113,58 @@ export default function Maintenance({
 
   const [stockItems, setStockItems] = useState([]);
 
+  // Estimate list and form states
+  const [woEstimates, setWoEstimates] = useState({}); // { [woId]: [ { id, type, itemCode, name, qty, cost, comment } ] }
+  const [showEstimateModal, setShowEstimateModal] = useState(false);
+  const [estType, setEstType] = useState('Material'); // Material or Labour
+  const [estItemCode, setEstItemCode] = useState('');
+  const [estName, setEstName] = useState('');
+  const [estQty, setEstQty] = useState(1);
+  const [estCost, setEstCost] = useState(0);
+  const [estComment, setEstComment] = useState('');
+
+  // Consume material list form states (Multiple items)
+  const [consumeItemsList, setConsumeItemsList] = useState([
+    { itemCode: '', qty: 1, comment: '' }
+  ]);
+
+  // Fetch active items from ERPNext DocType Item
+  useEffect(() => {
+    const fetchItems = async () => {
+      if (!erpnextConfig || !erpnextConfig.url) {
+        setStockItems([
+          { code: 'ITEM-001', name: 'Copper Pipe 1/2 inch', qty: 50, unitCost: 15 },
+          { code: 'ITEM-002', name: 'LED Ceiling Lamp 12W', qty: 30, unitCost: 25 },
+          { code: 'ITEM-003', name: 'Water Tap Ceramic Valve', qty: 20, unitCost: 40 },
+          { code: 'ITEM-004', name: 'Plywood Board 8x4', qty: 15, unitCost: 35 },
+          { code: 'ITEM-005', name: 'Wall paint White 5L', qty: 10, unitCost: 60 }
+        ]);
+        return;
+      }
+      try {
+        const res = await fetch(`${erpnextConfig.url}/api/resource/Item?fields=%5B%22name%22%2C%22item_name%22%2C%22val_rate%22%5D&limit_page_length=200`, {
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const list = json.data || json;
+          if (Array.isArray(list)) {
+            setStockItems(list.map(item => ({
+              code: item.name,
+              name: item.item_name || item.name,
+              qty: 100, // mock inventory quantity
+              unitCost: Number(item.val_rate) || 20
+            })));
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch ERPNext items:', err);
+      }
+    };
+    fetchItems();
+  }, [erpnextConfig]);
+
   // Fetch active assets from ERPNext
   useEffect(() => {
     if (!erpnextConfig || !erpnextConfig.url) return;
@@ -313,30 +365,69 @@ export default function Maintenance({
   };
 
   // Reassign handler
-  const handleReassignSubmit = (woId) => {
+  const handleReassignSubmit = async (woId) => {
+    const targetTech = reassignTech;
+    const targetVendor = reassignVendor;
+
     setWorkOrders(prev => prev.map(wo => {
       if (wo.id === woId) {
         return { 
           ...wo, 
-          technician: reassignTech || wo.technician, 
-          vendor: reassignVendor || wo.vendor 
+          technician: targetTech || wo.technician, 
+          vendor: targetVendor || wo.vendor 
         };
       }
       return wo;
     }));
+
     setSelectedWorkOrder(prev => {
-      if (prev.id === woId) {
+      if (prev && prev.id === woId) {
         return { 
           ...prev, 
-          technician: reassignTech || prev.technician, 
-          vendor: reassignVendor || prev.vendor 
+          technician: targetTech || prev.technician, 
+          vendor: targetVendor || prev.vendor 
         };
       }
       return prev;
     });
+
     setReassignWOId(null);
     setReassignTech('');
     setReassignVendor('');
+
+    if (erpnextConfig && erpnextConfig.url && !woId.startsWith('TASK-')) {
+      try {
+        const assignee = targetTech || targetVendor;
+        const assigneeEmail = (employees.find(e => e.name === targetTech)?.email) || 
+                              (vendors.find(v => v.name === targetVendor)?.email) || 
+                              (vendors.find(v => v.id === targetVendor)?.email) ||
+                              assignee;
+
+        if (assigneeEmail) {
+          const csrfToken = getCsrfToken();
+          const res = await fetch(`${erpnextConfig.url}/api/method/frappe.desk.form.assign_to.add`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              ...(csrfToken ? { 'X-Frappe-CSRF-Token': csrfToken } : {})
+            },
+            body: new URLSearchParams({
+              doctype: 'Task',
+              name: woId,
+              assign_to: JSON.stringify([assigneeEmail])
+            })
+          });
+          if (res.ok) {
+            alert(`Task successfully assigned to ${assigneeEmail} in ERPNext!`);
+          } else {
+            console.warn('Assignment API returned status:', res.status, await res.text());
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to assign task in ERPNext:', err);
+      }
+    }
   };
 
   // Drag & drop logic
@@ -442,7 +533,12 @@ export default function Maintenance({
     }
   };
 
-  const handleWOStatusChange = (woId, newStatus) => {
+  const handleWOStatusChange = async (woId, newStatus) => {
+    let erpStatus = newStatus;
+    if (newStatus === 'In Progress') erpStatus = 'Working';
+    else if (newStatus === 'Completed') erpStatus = 'Completed';
+    else if (newStatus === 'Open' || newStatus === 'Assigned') erpStatus = 'Open';
+
     setWorkOrders(prev => prev.map(wo => {
       if (wo.id === woId) {
         let actual = wo.actualCost;
@@ -453,6 +549,34 @@ export default function Maintenance({
       }
       return wo;
     }));
+
+    setSelectedWorkOrder(prev => {
+      if (prev && prev.id === woId) {
+        let actual = prev.actualCost;
+        if (newStatus === 'Completed' && prev.actualCost === 0) {
+          actual = prev.estCost;
+        }
+        return { ...prev, status: newStatus, actualCost: actual };
+      }
+      return prev;
+    });
+
+    if (erpnextConfig && erpnextConfig.url && !woId.startsWith('TASK-')) {
+      try {
+        const csrfToken = getCsrfToken();
+        await fetch(`${erpnextConfig.url}/api/resource/Task/${woId}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrfToken ? { 'X-Frappe-CSRF-Token': csrfToken } : {})
+          },
+          body: JSON.stringify({ status: erpStatus })
+        });
+      } catch (err) {
+        console.warn('Failed to update Task status in ERPNext:', err);
+      }
+    }
   };
 
   const handleCreateWO = async (e) => {
@@ -539,34 +663,154 @@ export default function Maintenance({
     }
   };
 
-  const handleConsumeItem = (e) => {
+  const handleConsumeItemSubmit = (e) => {
     e.preventDefault();
-    if (!consumeItemCode) return;
-    const item = stockItems.find(s => s.code === consumeItemCode);
-    if (!item) return;
+    if (!selectedWorkOrder) return;
 
-    if (item.qty < consumeItemQty) {
-      alert("Insufficient stock!");
-      return;
+    let totalCost = 0;
+    const newConsumedItems = [];
+
+    for (const entry of consumeItemsList) {
+      if (!entry.itemCode) continue;
+      const item = stockItems.find(s => s.code === entry.itemCode);
+      if (!item) continue;
+
+      if (item.qty < entry.qty) {
+        alert(`Insufficient stock for item: ${item.name}. Available: ${item.qty}, Requested: ${entry.qty}`);
+        return;
+      }
+
+      setStockItems(prev => prev.map(s => s.code === entry.itemCode ? { ...s, qty: s.qty - entry.qty } : s));
+
+      const cost = item.unitCost * entry.qty;
+      totalCost += cost;
+
+      newConsumedItems.push({
+        item: item.name,
+        itemCode: entry.itemCode,
+        qty: entry.qty,
+        cost: cost,
+        comment: entry.comment || ''
+      });
     }
 
-    setStockItems(prev => prev.map(s => s.code === consumeItemCode ? { ...s, qty: s.qty - consumeItemQty } : s));
-    const cost = item.unitCost * consumeItemQty;
+    if (newConsumedItems.length === 0) return;
+
     setWorkOrders(prev => prev.map(wo => {
       if (wo.id === selectedWorkOrder.id) {
-        const updatedItems = [...(wo.consumedItems || []), { item: item.name, qty: consumeItemQty, cost }];
-        return { ...wo, consumedItems: updatedItems, actualCost: wo.actualCost + cost };
+        const updatedItems = [...(wo.consumedItems || []), ...newConsumedItems];
+        return { ...wo, consumedItems: updatedItems, actualCost: wo.actualCost + totalCost };
       }
       return wo;
     }));
 
-    setSelectedWorkOrder(prev => ({
-      ...prev,
-      consumedItems: [...(prev.consumedItems || []), { item: item.name, qty: consumeItemQty, cost }],
-      actualCost: prev.actualCost + cost
-    }));
+    setSelectedWorkOrder(prev => {
+      if (prev && prev.id === selectedWorkOrder.id) {
+        return {
+          ...prev,
+          consumedItems: [...(prev.consumedItems || []), ...newConsumedItems],
+          actualCost: prev.actualCost + totalCost
+        };
+      }
+      return prev;
+    });
 
+    setConsumeItemsList([{ itemCode: '', qty: 1, comment: '' }]);
     setShowConsumeModal(false);
+  };
+
+  const handleAddEstimateSubmit = (e) => {
+    e.preventDefault();
+    if (!selectedWorkOrder) return;
+
+    let finalName = estName;
+    let finalCost = Number(estCost);
+
+    if (estType === 'Material' && estItemCode) {
+      const matchedItem = stockItems.find(s => s.code === estItemCode);
+      if (matchedItem) {
+        finalName = matchedItem.name;
+        finalCost = matchedItem.unitCost * estQty;
+      }
+    }
+
+    const newEstItem = {
+      id: `EST-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+      type: estType,
+      itemCode: estType === 'Material' ? estItemCode : '',
+      name: finalName || (estType === 'Labour' ? 'General Labour' : 'Material Item'),
+      qty: Number(estQty) || 1,
+      cost: finalCost,
+      comment: estComment || ''
+    };
+
+    setWoEstimates(prev => {
+      const listForWO = prev[selectedWorkOrder.id] || [];
+      return {
+        ...prev,
+        [selectedWorkOrder.id]: [...listForWO, newEstItem]
+      };
+    });
+
+    setEstType('Material');
+    setEstItemCode('');
+    setEstName('');
+    setEstQty(1);
+    setEstCost(0);
+    setEstComment('');
+    setShowEstimateModal(false);
+  };
+
+  const handleGenerateQuotation = async (woId) => {
+    const estimates = woEstimates[woId] || [];
+    if (estimates.length === 0) {
+      alert("No estimate items to generate quotation!");
+      return;
+    }
+    
+    const customerId = selectedWorkOrder.customerId || (tenants && tenants.length > 0 ? tenants[0].id : 'Customer-N/A');
+
+    const payload = {
+      quotation_to: 'Customer',
+      party_name: customerId,
+      transaction_date: new Date().toISOString().split('T')[0],
+      company: 'CARPENTERS PROPERTIES PTE LIMITED',
+      valid_till: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      items: estimates.map(e => ({
+        item_code: e.itemCode || 'General Item',
+        qty: Number(e.qty) || 1,
+        rate: Number(e.cost) / (Number(e.qty) || 1),
+        description: e.comment || e.name || 'Estimate Item'
+      }))
+    };
+
+    if (erpnextConfig && erpnextConfig.url) {
+      try {
+        const csrfToken = getCsrfToken();
+        const res = await fetch(`${erpnextConfig.url}/api/resource/Quotation`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrfToken ? { 'X-Frappe-CSRF-Token': csrfToken } : {})
+          },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          const json = await res.json();
+          alert(`Quotation ${json.data?.name || 'created'} generated successfully in ERPNext!`);
+        } else {
+          const errMsg = await res.text();
+          console.warn('Failed to generate Quotation in ERPNext:', errMsg);
+          alert(`Failed to generate Quotation: ${errMsg}`);
+        }
+      } catch (err) {
+        console.error('Error generating quotation:', err);
+        alert(`Error: ${err.message}`);
+      }
+    } else {
+      alert(`Simulation Mode: Quotation created for customer ${customerId} with ${estimates.length} items!`);
+    }
   };
 
   const filteredSchedules = localSchedules.filter(sch => {
@@ -1008,6 +1252,33 @@ export default function Maintenance({
                   </button>
                 )}
 
+                 {/* Estimates Section */}
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>Estimates (Material & Labour)</span>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-secondary btn-sm" style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => setShowEstimateModal(true)}>+ Add Estimate</button>
+                      {(woEstimates[selectedWorkOrder.id] || []).length > 0 && (
+                        <button className="btn btn-primary btn-sm" style={{ padding: '2px 6px', fontSize: 10, background: '#10b981' }} onClick={() => handleGenerateQuotation(selectedWorkOrder.id)}>Gen Quotation</button>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {(woEstimates[selectedWorkOrder.id] || []).map((e, idx) => (
+                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', fontSize: 11, background: 'var(--bg-tertiary)', padding: 6, borderRadius: 4, gap: 2 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span><strong>[{e.type}]</strong> {e.name} (x{e.qty})</span>
+                          <strong>${e.cost}</strong>
+                        </div>
+                        {e.comment && <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Comment: {e.comment}</div>}
+                      </div>
+                    ))}
+                    {(woEstimates[selectedWorkOrder.id] || []).length === 0 && (
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>No estimates added yet.</span>
+                    )}
+                  </div>
+                </div>
+
                 {/* Stock consumption */}
                 <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -1016,9 +1287,12 @@ export default function Maintenance({
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {(selectedWorkOrder.consumedItems || []).map((c, i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, background: 'var(--bg-tertiary)', padding: 6, borderRadius: 4 }}>
-                        <span>{c.item} (x{c.qty})</span>
-                        <strong>${c.cost}</strong>
+                      <div key={i} style={{ display: 'flex', flexDirection: 'column', fontSize: 11, background: 'var(--bg-tertiary)', padding: 6, borderRadius: 4, gap: 2 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>{c.item} (x{c.qty})</span>
+                          <strong>${c.cost}</strong>
+                        </div>
+                        {c.comment && <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Comment: {c.comment}</div>}
                       </div>
                     ))}
                   </div>
@@ -1460,30 +1734,163 @@ export default function Maintenance({
       {/* ITEM CONSUMPTION MODAL */}
       {showConsumeModal && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: 400 }}>
+          <div className="modal-content" style={{ maxWidth: 500, width: '90%' }}>
             <div className="modal-header">
               <h3>Deduct Stock & Consume Part</h3>
               <button onClick={() => setShowConsumeModal(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 20 }}>×</button>
             </div>
-            <form onSubmit={handleConsumeItem}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label className="form-label">Select Stock Item</label>
-                  <select value={consumeItemCode} onChange={(e) => setConsumeItemCode(e.target.value)} className="form-select" required>
-                    <option value="">-- Select Item --</option>
-                    {stockItems.map(s => (
-                      <option key={s.code} value={s.code}>{s.name} (Qty: {s.qty} - ${s.unitCost}/ea)</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Quantity to consume</label>
-                  <input type="number" value={consumeItemQty} onChange={(e) => setConsumeItemQty(Number(e.target.value))} className="form-input" min="1" required />
-                </div>
+            <form onSubmit={handleConsumeItemSubmit}>
+              <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {consumeItemsList.map((entry, idx) => (
+                  <div key={idx} style={{ border: '1px solid var(--border-color)', padding: 10, borderRadius: 6, position: 'relative', background: 'var(--bg-tertiary)' }}>
+                    {consumeItemsList.length > 1 && (
+                      <button 
+                        type="button" 
+                        onClick={() => setConsumeItemsList(prev => prev.filter((_, i) => i !== idx))} 
+                        style={{ position: 'absolute', top: 6, right: 6, background: 'none', border: 'none', color: 'var(--text-danger)', fontSize: 14, cursor: 'pointer' }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                    <div className="form-group" style={{ marginBottom: 8 }}>
+                      <label className="form-label" style={{ fontSize: 11 }}>Select Stock Item</label>
+                      <select 
+                        value={entry.itemCode} 
+                        onChange={(e) => setConsumeItemsList(prev => prev.map((item, i) => i === idx ? { ...item, itemCode: e.target.value } : item))} 
+                        className="form-select" 
+                        required
+                      >
+                        <option value="">-- Select Item --</option>
+                        {stockItems.map(s => (
+                          <option key={s.code} value={s.code}>{s.name} (Qty: {s.qty} - ${s.unitCost}/ea)</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid-2col" style={{ gap: 8, gridTemplateColumns: '1fr 2fr' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ fontSize: 11 }}>Qty</label>
+                        <input 
+                          type="number" 
+                          value={entry.qty} 
+                          onChange={(e) => setConsumeItemsList(prev => prev.map((item, i) => i === idx ? { ...item, qty: Number(e.target.value) } : item))} 
+                          className="form-input" 
+                          min="1" 
+                          required 
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ fontSize: 11 }}>Comment</label>
+                        <input 
+                          type="text" 
+                          value={entry.comment} 
+                          onChange={(e) => setConsumeItemsList(prev => prev.map((item, i) => i === idx ? { ...item, comment: e.target.value } : item))} 
+                          className="form-input" 
+                          placeholder="Note on usage"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <button 
+                  type="button" 
+                  className="btn btn-secondary btn-sm" 
+                  onClick={() => setConsumeItemsList(prev => [...prev, { itemCode: '', qty: 1, comment: '' }])}
+                  style={{ alignSelf: 'flex-start' }}
+                >
+                  + Add Another Item
+                </button>
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowConsumeModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Deduct & Record</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ESTIMATE CREATION MODAL */}
+      {showEstimateModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 450 }}>
+            <div className="modal-header">
+              <h3>Create Estimate Item</h3>
+              <button onClick={() => setShowEstimateModal(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 20 }}>×</button>
+            </div>
+            <form onSubmit={handleAddEstimateSubmit}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div className="form-group">
+                  <label className="form-label">Estimate Type</label>
+                  <select value={estType} onChange={(e) => setEstType(e.target.value)} className="form-select">
+                    <option value="Material">Material</option>
+                    <option value="Labour">Labour</option>
+                  </select>
+                </div>
+
+                {estType === 'Material' ? (
+                  <div className="form-group">
+                    <label className="form-label">Select Item (DocType Linked)</label>
+                    <select value={estItemCode} onChange={(e) => setEstItemCode(e.target.value)} className="form-select" required>
+                      <option value="">-- Choose Item --</option>
+                      {stockItems.map(s => (
+                        <option key={s.code} value={s.code}>{s.name} (${s.unitCost}/ea)</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="form-group">
+                    <label className="form-label">Labour Description</label>
+                    <input 
+                      type="text" 
+                      value={estName} 
+                      onChange={(e) => setEstName(e.target.value)} 
+                      className="form-input" 
+                      placeholder="e.g. Technician Labour" 
+                      required 
+                    />
+                  </div>
+                )}
+
+                <div className="grid-2col" style={{ gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+                  <div className="form-group">
+                    <label className="form-label">{estType === 'Material' ? 'Quantity' : 'Hours'}</label>
+                    <input 
+                      type="number" 
+                      value={estQty} 
+                      onChange={(e) => setEstQty(Number(e.target.value))} 
+                      className="form-input" 
+                      min="1" 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{estType === 'Material' ? 'Estimated Unit Cost' : 'Hourly Rate'}</label>
+                    <input 
+                      type="number" 
+                      value={estCost} 
+                      onChange={(e) => setEstCost(Number(e.target.value))} 
+                      className="form-input" 
+                      disabled={estType === 'Material'}
+                      placeholder={estType === 'Material' ? 'Auto-calculated' : 'e.g. 50'}
+                      required 
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Comments / Notes</label>
+                  <input 
+                    type="text" 
+                    value={estComment} 
+                    onChange={(e) => setEstComment(e.target.value)} 
+                    className="form-input" 
+                    placeholder="Specific notes on this estimate item" 
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEstimateModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Add Item</button>
               </div>
             </form>
           </div>
