@@ -144,7 +144,7 @@ function ImageCarousel({ images, height = 180, erpnextConfig }) {
   );
 }
 
-export default function Properties({ properties, onAddProperty, onToggleListOnline, erpnextConfig, onScheduleMaintenance }) {
+export default function Properties({ properties, onAddProperty, onToggleListOnline, erpnextConfig, onScheduleMaintenance, tenants = [], owners = [] }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [filterType, setFilterType] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -199,12 +199,24 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
   const [rent, setRent] = useState('');
   const [area, setArea] = useState('');
 
+  // Property Group field states
+  const [propertyOwner, setPropertyOwner] = useState('');
+  const [country, setCountry] = useState('Fiji');
+  const [landAndBuildingType, setLandAndBuildingType] = useState('Land and Structure');
+  const [district, setDistrict] = useState('');
+  const [locality, setLocality] = useState('');
+  const [legalDescription, setLegalDescription] = useState('');
+  const [referenceNo, setReferenceNo] = useState('');
+  const [leaseStartDate, setLeaseStartDate] = useState('');
+  const [leaseEndDate, setLeaseEndDate] = useState('');
+  const [noOfFloors, setNoOfFloors] = useState('');
+
   const [alertState, setAlertState] = useState({ show: false, success: true, message: '' });
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name || !address || !rent || !area) {
-      setAlertState({ show: true, success: false, message: 'Please fill in all required fields!' });
+    if (!name || !address || !rent || !area || !propertyOwner) {
+      setAlertState({ show: true, success: false, message: 'Please fill in all required fields including Property Owner!' });
       return;
     }
 
@@ -218,7 +230,17 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
         rent: Number(rent),
         area: Number(area),
         listedOnline: false,
-        occupancy: 0
+        occupancy: 0,
+        propertyOwner,
+        country,
+        landAndBuildingType,
+        district,
+        locality: locality || address,
+        legalDescription,
+        referenceNo,
+        leaseStartDate,
+        leaseEndDate,
+        noOfFloors: Number(noOfFloors) || undefined
       });
 
       setName('');
@@ -227,6 +249,16 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
       setUnitsCount(1);
       setRent('');
       setArea('');
+      setPropertyOwner('');
+      setCountry('Fiji');
+      setLandAndBuildingType('Land and Structure');
+      setDistrict('');
+      setLocality('');
+      setLegalDescription('');
+      setReferenceNo('');
+      setLeaseStartDate('');
+      setLeaseEndDate('');
+      setNoOfFloors('');
       setShowAddModal(false);
       setAlertState({ show: true, success: true, message: 'Property saved successfully!' });
     } catch (err) {
@@ -919,10 +951,9 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
         </div>
       )}
 
-      {/* Add Property Modal */}
       {showAddModal && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ position: 'relative' }}>
+          <div className="modal-content" style={{ position: 'relative', maxWidth: 600 }}>
             <button 
               onClick={() => setShowAddModal(false)}
               style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 20 }}
@@ -933,12 +964,26 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
               <h3>Create New Portfolio Asset</h3>
             </div>
             <form onSubmit={handleSubmit}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label className="form-label">Asset Name</label>
-                  <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Carpenters Row Tower A" className="form-input" required />
+              <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
+                  <div className="form-group">
+                    <label className="form-label">Asset Name</label>
+                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Carpenters Row Tower A" className="form-input" required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Property Owner (Required Customer)</label>
+                    <select value={propertyOwner} onChange={(e) => setPropertyOwner(e.target.value)} className="form-select" required>
+                      <option value="">-- Choose Owner --</option>
+                      {tenants.map(t => (
+                        <option key={t.id} value={t.id}>{t.name} ({t.id})</option>
+                      ))}
+                      {owners.map(o => (
+                        <option key={o.id} value={o.id}>{o.name} ({o.id})</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                
+
                 <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
                   <div className="form-group">
                     <label className="form-label">Asset Class Type</label>
@@ -949,14 +994,50 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                     </select>
                   </div>
                   <div className="form-group">
+                    <label className="form-label">Property Type</label>
+                    <select value={landAndBuildingType} onChange={(e) => setLandAndBuildingType(e.target.value)} className="form-select">
+                      <option value="Land and Structure">Land and Structure</option>
+                      <option value="Land Only">Land Only</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
+                  <div className="form-group">
                     <label className="form-label">Total Sub-Units</label>
                     <input type="number" min="1" value={unitsCount} onChange={(e) => setUnitsCount(e.target.value)} className="form-input" required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">No. Of Floors</label>
+                    <input type="number" min="1" value={noOfFloors} onChange={(e) => setNoOfFloors(e.target.value)} className="form-input" placeholder="e.g. 5" />
                   </div>
                 </div>
 
                 <div className="form-group">
                   <label className="form-label">Address</label>
                   <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Carpenters Estate, Stratford, London" className="form-input" required />
+                </div>
+
+                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
+                  <div className="form-group">
+                    <label className="form-label">Locality</label>
+                    <input type="text" value={locality} onChange={(e) => setLocality(e.target.value)} placeholder="e.g. Stratford" className="form-input" />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">District</label>
+                    <input type="text" value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="e.g. London" className="form-input" />
+                  </div>
+                </div>
+
+                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
+                  <div className="form-group">
+                    <label className="form-label">Country</label>
+                    <input type="text" value={country} onChange={(e) => setCountry(e.target.value)} className="form-input" />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Reference No</label>
+                    <input type="text" value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} placeholder="e.g. PG-REF-001" className="form-input" />
+                  </div>
                 </div>
 
                 <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
@@ -968,6 +1049,22 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                     <label className="form-label">Total Area (Sq Ft)</label>
                     <input type="number" min="1" value={area} onChange={(e) => setArea(e.target.value)} placeholder="e.g. 1500" className="form-input" required />
                   </div>
+                </div>
+
+                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
+                  <div className="form-group">
+                    <label className="form-label">Lease Start Date</label>
+                    <input type="date" value={leaseStartDate} onChange={(e) => setLeaseStartDate(e.target.value)} className="form-input" />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Lease End Date</label>
+                    <input type="date" value={leaseEndDate} onChange={(e) => setLeaseEndDate(e.target.value)} className="form-input" />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Legal Description</label>
+                  <textarea value={legalDescription} onChange={(e) => setLegalDescription(e.target.value)} placeholder="e.g. Plot No. 42, Block C..." className="form-input" rows="2" />
                 </div>
               </div>
               

@@ -902,10 +902,17 @@ export default function App() {
         const payload = {
           name: newProp.name,
           property_group_name: newProp.name,
-          land_and_building_type: newProp.type.charAt(0).toUpperCase() + newProp.type.slice(1),
-          locality: newProp.address,
-          no_of_floors: Math.ceil(newProp.unitsCount / 4) || 1,
+          property_owner: newProp.propertyOwner,
+          country: newProp.country,
+          land_and_building_type: newProp.landAndBuildingType,
+          district: newProp.district || undefined,
+          locality: newProp.locality || newProp.address,
+          legal_description: newProp.legalDescription || undefined,
+          reference_no: newProp.referenceNo || undefined,
+          lease_start_date: newProp.leaseStartDate || undefined,
+          lease_end_date: newProp.leaseEndDate || undefined,
           property_area: newProp.area,
+          no_of_floors: newProp.noOfFloors || undefined,
           listed_online: 1
         };
 
@@ -2029,6 +2036,8 @@ export default function App() {
             onAddProperty={handleAddProperty} 
             onToggleListOnline={handleToggleListOnline} 
             erpnextConfig={ERPNEXT_CONFIG} 
+            tenants={tenants}
+            owners={owners}
             onScheduleMaintenance={(prop) => {
               setPreSelectedProperty(prop);
               setCurrentTab('maintenance');
