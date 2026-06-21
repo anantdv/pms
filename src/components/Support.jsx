@@ -30,7 +30,7 @@ const MOCK_ISSUE_LISTS = {
   ]
 };
 
-export default function Support({ tickets, onAddMessage, onCreateIssue, tenants = [], properties = [], erpnextConfig }) {
+export default function Support({ tickets, onAddMessage, onCreateIssue, tenants = [], properties = [], erpnextConfig, onConvertToMaintenance }) {
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'issue', 'tinni'
   const [dashboardRole, setDashboardRole] = useState('manager'); // 'tenant', 'technician', 'manager', 'admin'
   const [selectedTicketId, setSelectedTicketId] = useState(tickets[0]?.id || null);
@@ -247,83 +247,9 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
     return cookieValue || '';
   };
 
-  const handleConvertToMaintenance = async (ticket) => {
-    alert(`Converting Ticket ${ticket.id} into an ERPNext Maintenance Schedule...`);
-    
-    // Resolve matching customer ID
-    const matchedTenant = tenants.find(t => t.name === ticket.tenantName || t.id === ticket.customerId || t.name === ticket.customerId);
-    const firstTenant = tenants[0];
-    const customerId = matchedTenant ? matchedTenant.id : (firstTenant ? firstTenant.id : 'Customer-N/A');
-
-    // Resolve valid Property Group name from ERPNext property list
-    let customProperty = 'PROP-2041';
-    if (properties && properties.length > 0) {
-      customProperty = properties[0].id;
-    } else if (matchedTenant && matchedTenant.propertyId && matchedTenant.propertyId !== 'PROP-2041') {
-      customProperty = matchedTenant.propertyId;
-    }
-
-    // Resolve valid unit/item code from bookings or tenant unitSpec
-    let itemCode = 'General Item';
-    const matchedBookingOpt = bookingOptions.find(b => b.customer === customerId);
-    if (matchedBookingOpt && matchedBookingOpt.property) {
-      itemCode = matchedBookingOpt.property;
-    } else if (matchedTenant && matchedTenant.unitSpec && matchedTenant.unitSpec !== 'Flat 4B') {
-      itemCode = matchedTenant.unitSpec;
-    } else if (bookingOptions.length > 0 && bookingOptions[0].property) {
-      itemCode = bookingOptions[0].property;
-    }
-
-    const payload = {
-      customer: customerId,
-      transaction_date: new Date().toISOString().split('T')[0],
-      custom_property: customProperty,
-      periodicity: 'One-time',
-      status: 'Draft',
-      items: [
-        {
-          item_code: itemCode,
-          start_date: new Date().toISOString().split('T')[0],
-          end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          periodicity: 'One-time',
-          description: ticket.subject || ticket.issueType || 'Maintenance requested via Helpdesk Support Ticket'
-        }
-      ],
-      schedules: [
-        {
-          item_code: itemCode,
-          scheduled_date: new Date().toISOString().split('T')[0],
-          completion_status: 'Pending'
-        }
-      ]
-    };
-
-    if (erpnextConfig && erpnextConfig.url) {
-      try {
-        const csrfToken = getCsrfToken();
-        const res = await fetch(`${erpnextConfig.url}/api/resource/Maintenance%20Schedule`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(csrfToken ? { 'X-Frappe-CSRF-Token': csrfToken } : {})
-          },
-          body: JSON.stringify(payload)
-        });
-        if (res.ok) {
-          alert('Maintenance Schedule successfully created in ERPNext!');
-          setLocalTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, status: 'assigned', lastUpdated: 'Just now' } : t));
-        } else {
-          const errMsg = await res.text();
-          console.warn('Failed to create maintenance schedule in ERPNext:', errMsg);
-          alert(`Failed to create Maintenance Schedule: ${errMsg}`);
-        }
-      } catch (err) {
-        console.error('Error converting ticket:', err);
-        alert(`Error: ${err.message}`);
-      }
-    } else {
-      setLocalTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, status: 'assigned', lastUpdated: 'Just now' } : t));
+  const handleConvertToMaintenance = (ticket) => {
+    if (onConvertToMaintenance) {
+      onConvertToMaintenance(ticket);
     }
   };
 

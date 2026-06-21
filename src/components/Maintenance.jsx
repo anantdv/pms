@@ -8,6 +8,8 @@ export default function Maintenance({
   properties = [], 
   preSelectedProperty = null, 
   clearPreSelectedProperty, 
+  preSelectedIssue = null,
+  clearPreSelectedIssue,
   onCreateSchedule, 
   onUpdateScheduleDate, 
   onUpdateScheduleStatus,
@@ -47,6 +49,7 @@ export default function Maintenance({
 
   // Schedule Creation Form States
   const [schedType, setSchedType] = useState('PM Schedule'); // PM Schedule, On-demand, Breakdown
+  const [schedIssueNumber, setSchedIssueNumber] = useState('');
   const [schedCustomer, setSchedCustomer] = useState('');
   const [schedPropertyId, setSchedPropertyId] = useState('');
   const [schedUnitSpec, setSchedUnitSpec] = useState('');
@@ -272,6 +275,28 @@ export default function Maintenance({
     }
   }, [preSelectedProperty, tenants, clearPreSelectedProperty]);
 
+  useEffect(() => {
+    if (preSelectedIssue) {
+      setSchedIssueNumber(preSelectedIssue.id || '');
+      setSchedDescription(preSelectedIssue.subject || '');
+      
+      const matchedTenant = tenants.find(t => t.name === preSelectedIssue.tenantName || t.id === preSelectedIssue.customerId || t.name === preSelectedIssue.customerId);
+      if (matchedTenant) {
+        setSchedCustomer(matchedTenant.id);
+        if (matchedTenant.propertyId) {
+          setSchedPropertyId(matchedTenant.propertyId);
+        }
+        if (matchedTenant.unitSpec) {
+          setSchedUnitSpec(matchedTenant.unitSpec);
+        }
+      }
+      setShowScheduleModal(true);
+      if (clearPreSelectedIssue) {
+        clearPreSelectedIssue();
+      }
+    }
+  }, [preSelectedIssue, tenants, clearPreSelectedIssue]);
+
   const getPropertyByUnit = (unitId) => {
     const tenant = (tenants || []).find(t => t.unitSpec === unitId || t.id === unitId || t.name === unitId);
     if (tenant) {
@@ -353,6 +378,7 @@ export default function Maintenance({
       custom_property: schedPropertyId,
       propertyName: propName,
       custom_asset: schedAssetId,
+      custom_issue: schedIssueNumber,
       status: schedVisitStatus === 'Pending' ? 'Draft' : (schedVisitStatus === 'Completed' || schedVisitStatus === 'In Progress' ? 'Submitted' : 'Draft'),
       items: [
         {
@@ -1178,6 +1204,19 @@ export default function Maintenance({
                     </select>
                   </div>
                   <div className="form-group">
+                    <label className="form-label">Issue Number (Optional)</label>
+                    <input 
+                      type="text" 
+                      value={schedIssueNumber} 
+                      onChange={(e) => setSchedIssueNumber(e.target.value)} 
+                      className="form-input" 
+                      placeholder="e.g. SUP-00123"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
+                  <div className="form-group">
                     <label className="form-label">Assign Property Group</label>
                     <select value={schedPropertyId} onChange={(e) => setSchedPropertyId(e.target.value)} className="form-select" required>
                       <option value="">-- Choose Property --</option>
@@ -1186,9 +1225,6 @@ export default function Maintenance({
                       ))}
                     </select>
                   </div>
-                </div>
-
-                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
                   <div className="form-group">
                     <label className="form-label">Customer (Tenant)</label>
                     <select value={schedCustomer} onChange={(e) => setSchedCustomer(e.target.value)} className="form-select">
@@ -1198,6 +1234,8 @@ export default function Maintenance({
                       ))}
                     </select>
                   </div>
+                </div>
+                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
                   <div className="form-group">
                     <label className="form-label">Unit Specification</label>
                     <select value={schedUnitSpec} onChange={(e) => setSchedUnitSpec(e.target.value)} className="form-select" required>
@@ -1211,22 +1249,22 @@ export default function Maintenance({
                       )}
                     </select>
                   </div>
-                </div>
 
-                <div className="form-group" style={{ marginBottom: 12 }}>
-                  <label className="form-label">Asset (Optional)</label>
-                  <select value={schedAssetId} onChange={(e) => setSchedAssetId(e.target.value)} className="form-select">
-                    <option value="">-- Choose Asset --</option>
-                    {assetsList.filter(a => {
-                      if (!schedPropertyId) return true;
-                      const prop = (properties || []).find(p => p.id === schedPropertyId);
-                      const propName = prop ? prop.name : '';
-                      return (a.location || '').toLowerCase().includes(schedPropertyId.toLowerCase()) || 
-                             (a.location || '').toLowerCase().includes(propName.toLowerCase());
-                    }).map(a => (
-                      <option key={a.id} value={a.id}>{a.name} ({a.location || 'No Location'})</option>
-                    ))}
-                  </select>
+                  <div className="form-group">
+                    <label className="form-label">Asset (Optional)</label>
+                    <select value={schedAssetId} onChange={(e) => setSchedAssetId(e.target.value)} className="form-select">
+                      <option value="">-- Choose Asset --</option>
+                      {assetsList.filter(a => {
+                        if (!schedPropertyId) return true;
+                        const prop = (properties || []).find(p => p.id === schedPropertyId);
+                        const propName = prop ? prop.name : '';
+                        return (a.location || '').toLowerCase().includes(schedPropertyId.toLowerCase()) || 
+                               (a.location || '').toLowerCase().includes(propName.toLowerCase());
+                      }).map(a => (
+                        <option key={a.id} value={a.id}>{a.name} ({a.location || 'No Location'})</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>

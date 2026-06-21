@@ -150,6 +150,7 @@ const INITIAL_SUPPORT = [
 export default function App() {
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [preSelectedProperty, setPreSelectedProperty] = useState(null);
+  const [preSelectedIssue, setPreSelectedIssue] = useState(null);
   
   // App Global State
   const [dataLoading, setDataLoading] = useState(true);
@@ -2049,6 +2050,8 @@ export default function App() {
             properties={properties}
             preSelectedProperty={preSelectedProperty}
             clearPreSelectedProperty={() => setPreSelectedProperty(null)}
+            preSelectedIssue={preSelectedIssue}
+            clearPreSelectedIssue={() => setPreSelectedIssue(null)}
             onCreateSchedule={handleCreateMaintenanceSchedule} 
             onUpdateScheduleDate={handleUpdateScheduleDate} 
             onUpdateScheduleStatus={handleUpdateScheduleStatus}
@@ -2063,7 +2066,7 @@ export default function App() {
       case 'invoices':
         return <Invoices invoices={invoices} accounts={accounts} glEntries={glEntries} onAddInvoice={handleAddInvoice} onRecordPayment={handleRecordPayment} erpnextConfig={ERPNEXT_CONFIG} />;
       case 'support':
-        return <Support tickets={supportTickets} onAddMessage={handleAddSupportMessage} onCreateIssue={handleCreateIssue} tenants={tenants} properties={properties} erpnextConfig={ERPNEXT_CONFIG} />;
+        return <Support tickets={supportTickets} onAddMessage={handleAddSupportMessage} onCreateIssue={handleCreateIssue} tenants={tenants} properties={properties} erpnextConfig={ERPNEXT_CONFIG} onConvertToMaintenance={(ticket) => { setPreSelectedIssue(ticket); setCurrentTab('maintenance'); }} />;
       case 'reports':
         return <Reports />;
       case 'hrms':
