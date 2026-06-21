@@ -100,7 +100,7 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
           ['reference_doctype', '=', 'Issue'],
           ['reference_name', '=', selectedTicketId]
         ]))}&fields=${encodeURIComponent(JSON.stringify([
-          'name', 'comment_by', 'content', 'creation', 'is_internal'
+          'name', 'comment_by', 'content', 'creation'
         ]))}&limit_page_length=100`, {
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' }
@@ -110,11 +110,13 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
           const commentsList = json.data || [];
           const fetchedMessages = commentsList.map(c => {
             const contentClean = c.content ? c.content.replace(/<[^>]*>/g, '') : '';
+            const isInternalComment = contentClean.includes('[Internal Note]') || c.is_internal === 1 || c.is_internal === true;
+            const textDisplay = contentClean.replace('[Internal Note] ', '');
             return {
               sender: c.comment_by === 'devteam@anantdv.com' || c.comment_by === 'admin' ? 'admin' : 'tenant',
-              text: contentClean,
+              text: textDisplay,
               timestamp: c.creation ? c.creation.split('.')[0] : 'Just now',
-              is_internal: c.is_internal === 1 || c.is_internal === true
+              is_internal: isInternalComment
             };
           });
 

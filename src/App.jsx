@@ -1284,7 +1284,7 @@ export default function App() {
   };
 
   const handleAddSupportMessage = async (ticketId, message) => {
-    let finalCommentText = message.text || '';
+    let finalCommentText = message.isInternal ? `[Internal Note] ${message.text || ''}` : (message.text || '');
     
     setSupportTickets(prev => prev.map(t => {
       if (t.id === ticketId) {
