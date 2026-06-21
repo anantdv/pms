@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { DollarSign, Printer, ArrowDownRight, ArrowUpRight, Plus, X, FileText, CheckCircle2, Calculator, Landmark, Mail } from 'lucide-react';
 
 const numberToWords = (num) => {

@@ -343,7 +343,7 @@ export default function Maintenance({
       custom_property: schedPropertyId,
       propertyName: propName,
       custom_asset: schedAssetId,
-      status: schedVisitStatus,
+      status: schedVisitStatus === 'Pending' ? 'Draft' : (schedVisitStatus === 'Completed' || schedVisitStatus === 'In Progress' ? 'Submitted' : 'Draft'),
       items: [
         {
           item_code: schedUnitSpec || 'General Item',

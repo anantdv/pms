@@ -30,7 +30,7 @@ const MOCK_ISSUE_LISTS = {
   ]
 };
 
-export default function Support({ tickets, onAddMessage, onCreateIssue, tenants = [], erpnextConfig }) {
+export default function Support({ tickets, onAddMessage, onCreateIssue, tenants = [], properties = [], erpnextConfig }) {
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'issue', 'tinni'
   const [dashboardRole, setDashboardRole] = useState('manager'); // 'tenant', 'technician', 'manager', 'admin'
   const [selectedTicketId, setSelectedTicketId] = useState(tickets[0]?.id || null);
@@ -102,21 +102,26 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
     const fetchBookingDetails = async () => {
       if (!erpnextConfig || !erpnextConfig.url) {
         setBookingOptions([
-          { value: 'BOOKING-00222', label: 'BOOKING-00222 - Unit: 31CT28 (Cnr Rodwell/ Robertson Roads, Suva, Fiji)' },
-          { value: 'BOOKING-00226', label: 'BOOKING-00226 - Unit: 31GF10 (Public Lobby Corridor, Suva, Fiji)' }
+          { value: 'BOOKING-00222', label: 'BOOKING-00222 - Unit: 31CT28 (Cnr Rodwell/ Robertson Roads, Suva, Fiji)', customer: '', property: '31CT28' },
+          { value: 'BOOKING-00226', label: 'BOOKING-00226 - Unit: 31GF10 (Public Lobby Corridor, Suva, Fiji)', customer: '', property: '31GF10' }
         ]);
         return;
       }
       setLoadingBookings(true);
       try {
-        const res = await fetch(`${erpnextConfig.url}/api/resource/Booking?fields=%5B%22name%22%5D&limit_page_length=20`, {
+        const res = await fetch(`${erpnextConfig.url}/api/resource/Booking?fields=%5B%22name%22%2C%22customer%22%2C%22property%22%5D&limit_page_length=200`, {
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' }
         });
         if (res.ok) {
           const json = await res.json();
           const list = json.data || [];
-          setBookingOptions(list.map(b => ({ value: b.name, label: `${b.name} - Property Booking`, customer: '' })));
+          setBookingOptions(list.map(b => ({
+            value: b.name,
+            label: `${b.name} - Unit: ${b.property || 'N/A'} (${b.customer || 'Tenant'})`,
+            customer: b.customer,
+            property: b.property
+          })));
         }
       } catch (e) {
         console.warn('Failed fetching booking details:', e);
@@ -128,6 +133,18 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
       fetchBookingDetails();
     }
   }, [erpnextConfig, showCreateModal]);
+
+  // Handle booking options auto-selection based on selected customer
+  useEffect(() => {
+    const customerBookings = bookingOptions.filter(opt => opt.customer === issueCustomer);
+    if (customerBookings.length > 0) {
+      setSelectedBookingNumber(customerBookings[0].value);
+    } else if (bookingOptions.length > 0) {
+      setSelectedBookingNumber(bookingOptions[0].value);
+    } else {
+      setSelectedBookingNumber('');
+    }
+  }, [issueCustomer, bookingOptions]);
 
   // Calculate ticket age in days
   const calculateAge = (dateRaised) => {
@@ -183,14 +200,39 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
   const handleConvertToMaintenance = async (ticket) => {
     alert(`Converting Ticket ${ticket.id} into an ERPNext Maintenance Schedule...`);
     
+    // Resolve matching customer ID
+    const matchedTenant = tenants.find(t => t.name === ticket.tenantName || t.id === ticket.customerId || t.name === ticket.customerId);
+    const firstTenant = tenants[0];
+    const customerId = matchedTenant ? matchedTenant.id : (firstTenant ? firstTenant.id : 'Customer-N/A');
+
+    // Resolve valid Property Group name from ERPNext property list
+    let customProperty = 'PROP-2041';
+    if (properties && properties.length > 0) {
+      customProperty = properties[0].id;
+    } else if (matchedTenant && matchedTenant.propertyId && matchedTenant.propertyId !== 'PROP-2041') {
+      customProperty = matchedTenant.propertyId;
+    }
+
+    // Resolve valid unit/item code from bookings or tenant unitSpec
+    let itemCode = 'General Item';
+    const matchedBookingOpt = bookingOptions.find(b => b.customer === customerId);
+    if (matchedBookingOpt && matchedBookingOpt.property) {
+      itemCode = matchedBookingOpt.property;
+    } else if (matchedTenant && matchedTenant.unitSpec && matchedTenant.unitSpec !== 'Flat 4B') {
+      itemCode = matchedTenant.unitSpec;
+    } else if (bookingOptions.length > 0 && bookingOptions[0].property) {
+      itemCode = bookingOptions[0].property;
+    }
+
     const payload = {
-      customer: ticket.customerId || ticket.tenantName || 'Customer-N/A',
+      customer: customerId,
       transaction_date: new Date().toISOString().split('T')[0],
-      custom_property: ticket.propertyId || 'PROP-2041',
+      custom_property: customProperty,
       periodicity: 'One-time',
+      status: 'Draft',
       items: [
         {
-          item_code: ticket.unitSpec || 'General Item',
+          item_code: itemCode,
           start_date: new Date().toISOString().split('T')[0],
           end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           periodicity: 'One-time',
@@ -199,7 +241,7 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
       ],
       schedules: [
         {
-          item_code: ticket.unitSpec || 'General Item',
+          item_code: itemCode,
           scheduled_date: new Date().toISOString().split('T')[0],
           completion_status: 'Pending'
         }
@@ -979,6 +1021,20 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
                     <label className="form-label">Raised By (Email)</label>
                     <input type="email" value={issueRaisedBy} onChange={(e) => setIssueRaisedBy(e.target.value)} className="form-input" required />
                   </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Booking Number (Mandatory in ERPNext)</label>
+                  <select value={selectedBookingNumber} onChange={(e) => setSelectedBookingNumber(e.target.value)} className="form-select" required>
+                    <option value="">-- Select Booking --</option>
+                    {(() => {
+                      const customerBookings = bookingOptions.filter(opt => !issueCustomer || opt.customer === issueCustomer);
+                      const bookingsToShow = customerBookings.length > 0 ? customerBookings : bookingOptions;
+                      return bookingsToShow.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ));
+                    })()}
+                  </select>
                 </div>
 
                 <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>

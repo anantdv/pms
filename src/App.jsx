@@ -497,9 +497,9 @@ export default function App() {
 
       // 5. Fetch Issues for Helpdesk Support
       try {
-        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Issue?fields=%5B%22name%22%2C%22subject%22%2C%22customer_name1%22%2C%22customer_email%22%2C%22status%22%2C%22priority%22%2C%22date%22%5D`, {
+        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Issue?fields=%5B%22name%22%2C%22subject%22%2C%22customer%22%2C%22customer_name1%22%2C%22customer_email%22%2C%22status%22%2C%22priority%22%2C%22date%22%5D`, {
           credentials: 'include',
-      headers: {
+          headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -516,7 +516,8 @@ export default function App() {
               return {
                 id: issue.name || `SUP-${Math.floor(700 + Math.random() * 200)}`,
                 subject: issue.subject || 'Support Request',
-                tenantName: issue.customer_name1 || 'Anonymous Tenant',
+                customerId: issue.customer,
+                tenantName: issue.customer_name1 || issue.customer || 'Anonymous Tenant',
                 propertyId: 'PROP-2041',
                 status: finalStatus,
                 lastUpdated: 'Just now',
@@ -1141,6 +1142,13 @@ export default function App() {
     }));
 
     if (ERPNEXT_CONFIG) {
+      let erpStatus = 'Draft';
+      if (nextStatus === 'In Progress' || nextStatus === 'Completed') {
+        erpStatus = 'Submitted';
+      } else if (nextStatus === 'Cancelled') {
+        erpStatus = 'Cancelled';
+      }
+
       try {
         await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule/${scheduleName}`, {
           method: 'PUT',
@@ -1149,7 +1157,7 @@ export default function App() {
             'Content-Type': 'application/json',
             'X-Frappe-CSRF-Token': getCsrfToken()
           },
-          body: JSON.stringify({ status: nextStatus })
+          body: JSON.stringify({ status: erpStatus })
         });
       } catch (err) {
         console.warn('Failed to update ERPNext Maintenance Schedule status:', err);
@@ -2023,7 +2031,7 @@ export default function App() {
       case 'invoices':
         return <Invoices invoices={invoices} accounts={accounts} glEntries={glEntries} onAddInvoice={handleAddInvoice} onRecordPayment={handleRecordPayment} erpnextConfig={ERPNEXT_CONFIG} />;
       case 'support':
-        return <Support tickets={supportTickets} onAddMessage={handleAddSupportMessage} onCreateIssue={handleCreateIssue} tenants={tenants} erpnextConfig={ERPNEXT_CONFIG} />;
+        return <Support tickets={supportTickets} onAddMessage={handleAddSupportMessage} onCreateIssue={handleCreateIssue} tenants={tenants} properties={properties} erpnextConfig={ERPNEXT_CONFIG} />;
       case 'reports':
         return <Reports />;
       case 'hrms':
