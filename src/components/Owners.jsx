@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { UserCheck, ShieldCheck, Mail, Phone, Briefcase, DollarSign, X, CheckCircle, TrendingUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { UserCheck, ShieldCheck, Mail, Phone, Briefcase, DollarSign, X, CheckCircle, Clock } from 'lucide-react';
 
-export default function Owners({ owners }) {
+export default function Owners({ owners, erpnextConfig }) {
   const [selectedOwner, setSelectedOwner] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [vendorDetails, setVendorDetails] = useState(null);
 
   // Pagination states & calculations
   const [currentPage, setCurrentPage] = useState(1);
@@ -12,6 +14,91 @@ export default function Owners({ owners }) {
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = owners.slice(indexOfFirstItem, indexOfLastItem);
+
+  // Load detailed information on demand
+  useEffect(() => {
+    if (!selectedOwner) {
+      setVendorDetails(null);
+      return;
+    }
+
+    // Set fallback initial details from listing data
+    setVendorDetails({
+      id: selectedOwner.id,
+      name: selectedOwner.name,
+      supplier_type: selectedOwner.supplier_type,
+      supplier_group: selectedOwner.supplier_group,
+      email: selectedOwner.email,
+      phone: selectedOwner.phone,
+      address: selectedOwner.address || '',
+      properties: selectedOwner.properties || [],
+      addresses: [],
+      contacts: []
+    });
+
+    if (!erpnextConfig || !erpnextConfig.url || selectedOwner.id.startsWith('OWN-')) {
+      return;
+    }
+
+    const fetchDetails = async () => {
+      setDetailsLoading(true);
+      try {
+        const idEnc = encodeURIComponent(selectedOwner.id);
+
+        // 1. Fetch Supplier Doc
+        const supPromise = fetch(`${erpnextConfig.url}/api/resource/Supplier/${idEnc}`, { credentials: 'include' })
+          .then(res => res.ok ? res.json() : null)
+          .catch(() => null);
+
+        // 2. Fetch Addresses
+        const addrPromise = fetch(`${erpnextConfig.url}/api/resource/Address?filters=[["Dynamic Link", "link_doctype", "=", "Supplier"], ["Dynamic Link", "link_name", "=", "${selectedOwner.id}"]]&fields=["address_line1","address_line2","city","state","country","pincode"]`, { credentials: 'include' })
+          .then(res => res.ok ? res.json() : null)
+          .catch(() => null);
+
+        // 3. Fetch Contacts
+        const contactPromise = fetch(`${erpnextConfig.url}/api/resource/Contact?filters=[["Dynamic Link", "link_doctype", "=", "Supplier"], ["Dynamic Link", "link_name", "=", "${selectedOwner.id}"]]&fields=["email_id","phone","first_name","last_name"]`, { credentials: 'include' })
+          .then(res => res.ok ? res.json() : null)
+          .catch(() => null);
+
+        const [supJson, addrJson, contactJson] = await Promise.all([supPromise, addrPromise, contactPromise]);
+
+        const supplierData = supJson?.data || supJson || {};
+        const addressList = addrJson?.data || addrJson || [];
+        const contactList = contactJson?.data || contactJson || [];
+
+        // Compile display Address
+        let addressStr = '';
+        if (addressList.length > 0) {
+          const addr = addressList[0];
+          addressStr = [addr.address_line1, addr.address_line2, addr.city, addr.state, addr.country, addr.pincode].filter(Boolean).join(', ');
+        }
+
+        let contactPhone = selectedOwner.phone || '';
+        let contactEmail = selectedOwner.email || '';
+        if (contactList.length > 0) {
+          contactEmail = contactList[0].email_id || contactEmail;
+          contactPhone = contactList[0].phone || contactPhone;
+        }
+
+        setVendorDetails(prev => ({
+          ...prev,
+          supplier_type: supplierData.supplier_type || prev.supplier_type,
+          supplier_group: supplierData.supplier_group || prev.supplier_group,
+          address: addressStr || prev.address,
+          email: contactEmail || prev.email,
+          phone: contactPhone || prev.phone,
+          addresses: addressList,
+          contacts: contactList
+        }));
+      } catch (err) {
+        console.warn('Failed fetching supplier details:', err);
+      } finally {
+        setDetailsLoading(false);
+      }
+    };
+
+    fetchDetails();
+  }, [selectedOwner, erpnextConfig]);
 
   const renderPaginationControls = () => {
     if (totalPages <= 1) return null;
@@ -132,65 +219,103 @@ export default function Owners({ owners }) {
               </button>
             </div>
 
-            <div>
-              <h2 style={{ fontSize: '1.25rem', marginBottom: 4 }}>{selectedOwner.name}</h2>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <span className="badge badge-success" style={{ gap: 4, fontSize: 9 }}>
-                  <CheckCircle size={10} /> Verified Vendor
-                </span>
-                <span className="badge badge-info" style={{ fontSize: 9 }}>
-                  {selectedOwner.supplier_type || 'Services'}
-                </span>
+            {detailsLoading ? (
+              <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
+                Loading details from ERPNext Supplier...
               </div>
-            </div>
-
-            {/* Vendor Details */}
-            <div style={{ background: 'var(--bg-tertiary)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <h3 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Vendor Properties</h3>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Vendor Type:</span>
-                <strong style={{ color: 'var(--text-primary)' }}>{selectedOwner.supplier_type || 'Services'}</strong>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Vendor Group:</span>
-                <strong style={{ color: 'var(--text-primary)' }}>{selectedOwner.supplier_group || 'Local'}</strong>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Email:</span>
-                <strong style={{ color: 'var(--text-primary)' }}>{selectedOwner.email}</strong>
-              </div>
-
-              {selectedOwner.phone && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Phone:</span>
-                  <strong style={{ color: 'var(--text-primary)' }}>{selectedOwner.phone}</strong>
+            ) : (
+              <>
+                <div>
+                  <h2 style={{ fontSize: '1.25rem', marginBottom: 4 }}>{vendorDetails?.name || selectedOwner.name}</h2>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <span className="badge badge-success" style={{ gap: 4, fontSize: 9 }}>
+                      <CheckCircle size={10} /> Verified Vendor
+                    </span>
+                    <span className="badge badge-info" style={{ fontSize: 9 }}>
+                      {vendorDetails?.supplier_type || selectedOwner.supplier_type || 'Services'}
+                    </span>
+                  </div>
                 </div>
-              )}
 
-              {selectedOwner.address && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, borderTop: '1px solid var(--border-color)', paddingTop: 10 }}>
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Vendor Address</span>
-                  <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{selectedOwner.address}</span>
-                </div>
-              )}
-            </div>
+                {/* Vendor Details */}
+                <div style={{ background: 'var(--bg-tertiary)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <h3 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Vendor Properties</h3>
+                  
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Vendor Type:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>{vendorDetails?.supplier_type || selectedOwner.supplier_type || 'Services'}</strong>
+                  </div>
 
-            {/* Portfolio Assets list if available */}
-            {selectedOwner.properties && selectedOwner.properties.length > 0 && (
-              <div>
-                <h3 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Assigned Holdings/Contracts</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {selectedOwner.properties.map((pName, index) => (
-                    <div key={index} style={{ background: 'var(--bg-tertiary)', padding: '10px 14px', borderRadius: 6, border: '1px solid var(--border-color)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <Briefcase size={14} style={{ color: 'var(--text-secondary)' }} />
-                      <span style={{ fontWeight: 500 }}>{pName}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Vendor Group:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>{vendorDetails?.supplier_group || selectedOwner.supplier_group || 'Local'}</strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Email:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>{vendorDetails?.email || selectedOwner.email}</strong>
+                  </div>
+
+                  {(vendorDetails?.phone || selectedOwner.phone) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Phone:</span>
+                      <strong style={{ color: 'var(--text-primary)' }}>{vendorDetails?.phone || selectedOwner.phone}</strong>
                     </div>
-                  ))}
+                  )}
+
+                  {(vendorDetails?.address || selectedOwner.address) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, borderTop: '1px solid var(--border-color)', paddingTop: 10 }}>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Primary Address</span>
+                      <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{vendorDetails?.address || selectedOwner.address}</span>
+                    </div>
+                  )}
                 </div>
-              </div>
+
+                {/* Additional Addresses */}
+                {vendorDetails?.addresses && vendorDetails.addresses.length > 1 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>All Linked Addresses ({vendorDetails.addresses.length})</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {vendorDetails.addresses.map((addr, idx) => (
+                        <div key={idx} style={{ background: 'var(--bg-tertiary)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)', fontSize: 12, color: 'var(--text-primary)' }}>
+                          {[addr.address_line1, addr.address_line2, addr.city, addr.state, addr.country, addr.pincode].filter(Boolean).join(', ')}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Linked Contacts */}
+                {vendorDetails?.contacts && vendorDetails.contacts.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Linked Contacts</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {vendorDetails.contacts.map((c, idx) => (
+                        <div key={idx} style={{ background: 'var(--bg-tertiary)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)', fontSize: 12, color: 'var(--text-primary)' }}>
+                          <div style={{ fontWeight: 600 }}>{[c.first_name, c.last_name].filter(Boolean).join(' ') || 'Contact'}</div>
+                          {c.email_id && <div style={{ color: 'var(--text-secondary)' }}>Email: {c.email_id}</div>}
+                          {c.phone && <div style={{ color: 'var(--text-secondary)' }}>Phone: {c.phone}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Portfolio Assets list if available */}
+                {selectedOwner.properties && selectedOwner.properties.length > 0 && (
+                  <div>
+                    <h3 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Assigned Holdings/Contracts</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {selectedOwner.properties.map((pName, index) => (
+                        <div key={index} style={{ background: 'var(--bg-tertiary)', padding: '10px 14px', borderRadius: 6, border: '1px solid var(--border-color)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <Briefcase size={14} style={{ color: 'var(--text-secondary)' }} />
+                          <span style={{ fontWeight: 500 }}>{pName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

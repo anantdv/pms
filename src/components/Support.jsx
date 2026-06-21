@@ -63,6 +63,10 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Internal comment and attachment states
+  const [isInternal, setIsInternal] = useState(false);
+  const [attachedFile, setAttachedFile] = useState(null);
+
   // Local state copy of tickets to allow changing status and closing/reopening in the UI
   const [localTickets, setLocalTickets] = useState(tickets);
   const [messageText, setMessageText] = useState('');
@@ -85,6 +89,50 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
       setSelectedTicketId(tickets[0].id);
     }
   }, [tickets]);
+
+  useEffect(() => {
+    const fetchComments = async () => {
+      if (!selectedTicketId || !erpnextConfig || !erpnextConfig.url || String(selectedTicketId).startsWith('SUP-')) {
+        return;
+      }
+      try {
+        const res = await fetch(`${erpnextConfig.url}/api/resource/Communication?filters=${encodeURIComponent(JSON.stringify([
+          ['reference_doctype', '=', 'Issue'],
+          ['reference_name', '=', selectedTicketId]
+        ]))}&fields=${encodeURIComponent(JSON.stringify([
+          'name', 'sender', 'content', 'creation', 'is_internal'
+        ]))}&limit_page_length=100`, {
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const comms = json.data || [];
+          const fetchedMessages = comms.map(c => {
+            const contentClean = c.content ? c.content.replace(/<[^>]*>/g, '') : '';
+            return {
+              sender: c.sender === 'devteam@anantdv.com' || c.sender === 'admin' ? 'admin' : 'tenant',
+              text: contentClean,
+              timestamp: c.creation ? c.creation.split('.')[0] : 'Just now',
+              is_internal: c.is_internal === 1 || c.is_internal === true
+            };
+          });
+
+          setLocalTickets(prev => prev.map(t => {
+            if (t.id === selectedTicketId) {
+              const baseMsg = t.messages && t.messages.length > 0 ? t.messages[0] : null;
+              const newMsgs = baseMsg ? [baseMsg, ...fetchedMessages] : fetchedMessages;
+              return { ...t, messages: newMsgs };
+            }
+            return t;
+          }));
+        }
+      } catch (err) {
+        console.warn('Failed to fetch communications:', err);
+      }
+    };
+    fetchComments();
+  }, [selectedTicketId, erpnextConfig]);
 
   // Sync issue rows on list selection
   useEffect(() => {
@@ -279,28 +327,36 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
 
   // Handle status update
   const handleStatusChange = async (ticketId, nextStatus) => {
+    // Map display statuses to exactly matched ERPNext ones
+    let displayStatus = nextStatus;
+    if (nextStatus.toLowerCase() === 'open') displayStatus = 'Open';
+    else if (nextStatus.toLowerCase() === 'replied') displayStatus = 'Replied';
+    else if (nextStatus.toLowerCase() === 'on hold' || nextStatus.toLowerCase() === 'onhold' || nextStatus.toLowerCase() === 'on_hold') displayStatus = 'On Hold';
+    else if (nextStatus.toLowerCase() === 'resolved') displayStatus = 'Resolved';
+    else if (nextStatus.toLowerCase() === 'closed') displayStatus = 'Closed';
+
     setLocalTickets(prev => prev.map(t => {
       if (t.id === ticketId) {
         return { 
           ...t, 
-          status: nextStatus, 
+          status: displayStatus, 
           lastUpdated: 'Just now',
           messages: [
             ...t.messages,
-            { sender: 'system', text: `Status changed to ${nextStatus}`, timestamp: 'Just now' }
+            { sender: 'system', text: `Status changed to ${displayStatus}`, timestamp: 'Just now' }
           ]
         };
       }
       return t;
     }));
 
-    if (erpnextConfig) {
+    if (erpnextConfig && erpnextConfig.url) {
       try {
         await fetch(`${erpnextConfig.url}/api/resource/Issue/${ticketId}`, {
           method: 'PUT',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: nextStatus })
+          body: JSON.stringify({ status: displayStatus })
         });
       } catch (err) {
         console.warn('Failed to sync status change to ERPNext:', err);
@@ -321,7 +377,7 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
     e.preventDefault();
     const ticketId = e.dataTransfer.getData('text/plain');
     if (ticketId) {
-      handleStatusChange(ticketId, targetStatus.toLowerCase());
+      handleStatusChange(ticketId, targetStatus);
     }
   };
 
@@ -332,28 +388,43 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
   };
 
   // Add Comment/Response message
-  const handleSendAdminMessage = (e) => {
+  const handleSendAdminMessage = async (e) => {
     e.preventDefault();
-    if (!messageText.trim()) return;
+    if (!messageText.trim() && !attachedFile) return;
+
+    if (onAddMessage) {
+      await onAddMessage(selectedTicketId, {
+        text: messageText,
+        isInternal: isInternal,
+        file: attachedFile
+      });
+    }
 
     setLocalTickets(prev => prev.map(t => {
       if (t.id === selectedTicketId) {
+        const fileMsgText = attachedFile ? ` [Attachment: ${attachedFile.name}]` : '';
         return {
           ...t,
           lastUpdated: 'Just now',
           messages: [
             ...t.messages,
-            { sender: 'admin', text: messageText, timestamp: 'Just now' }
+            { 
+              sender: 'admin', 
+              text: messageText + fileMsgText, 
+              timestamp: 'Just now',
+              is_internal: isInternal
+            }
           ]
         };
       }
       return t;
     }));
 
-    if (onAddMessage) {
-      onAddMessage(selectedTicketId, messageText);
-    }
     setMessageText('');
+    setIsInternal(false);
+    setAttachedFile(null);
+    const fileInput = document.getElementById('comment-file-input');
+    if (fileInput) fileInput.value = '';
   };
 
   // Create Ticket Submit
@@ -447,8 +518,8 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
     }, 2000);
   };
 
-  const openTickets = localTickets.filter(t => t.status !== 'closed' && t.status !== 'resolved');
-  const closedTickets = localTickets.filter(t => t.status === 'closed' || t.status === 'resolved');
+  const openTickets = localTickets.filter(t => (t.status || '').toLowerCase() !== 'closed' && (t.status || '').toLowerCase() !== 'resolved');
+  const closedTickets = localTickets.filter(t => (t.status || '').toLowerCase() === 'closed' || (t.status || '').toLowerCase() === 'resolved');
   const selectedTicket = localTickets.find(t => String(t.id).toLowerCase() === String(selectedTicketId).toLowerCase());
 
   const currentItems = localTickets.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -796,11 +867,11 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
                           className="form-select"
                           style={{ padding: '4px 8px', fontSize: 10, width: 110 }}
                         >
-                          <option value="open">Open</option>
-                          <option value="assigned">Assigned</option>
-                          <option value="in progress">In Progress</option>
-                          <option value="resolved">Resolved</option>
-                          <option value="closed">Closed</option>
+                          <option value="Open">Open</option>
+                          <option value="Replied">Replied</option>
+                          <option value="On Hold">On Hold</option>
+                          <option value="Resolved">Resolved</option>
+                          <option value="Closed">Closed</option>
                         </select>
                       </div>
                     </div>
@@ -830,24 +901,35 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
 
                     {/* Sub Tab Content */}
                     <div style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      {commTab === 'public' && (
-                        selectedTicket.messages.filter(m => m.sender !== 'system').map((msg, index) => (
+                      {commTab === 'public' && (() => {
+                        const publicMsgs = (selectedTicket.messages || []).filter(m => m.sender !== 'system' && !m.is_internal);
+                        if (publicMsgs.length === 0) {
+                          return <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 20 }}>No public comments.</div>;
+                        }
+                        return publicMsgs.map((msg, index) => (
                           <div key={index} style={{ alignSelf: msg.sender === 'admin' ? 'flex-end' : 'flex-start', maxWidth: '75%' }}>
                             <div style={{ padding: '8px 12px', borderRadius: 8, backgroundColor: msg.sender === 'admin' ? 'var(--brand-color)' : 'var(--bg-secondary)', color: msg.sender === 'admin' ? '#000' : 'var(--text-primary)', fontSize: 12 }}>
                               {msg.text}
                             </div>
                             <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', textAlign: msg.sender === 'admin' ? 'right' : 'left', marginTop: 2 }}>{msg.timestamp}</span>
                           </div>
-                        ))
-                      )}
+                        ));
+                      })()}
 
-                      {commTab === 'internal' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          <div style={{ padding: 10, background: 'rgba(251,191,36,0.1)', borderLeft: '4px solid #fbbf24', borderRadius: 4, fontSize: 11 }}>
-                            <strong>Note by PM (2026-06-16):</strong> Confirmed leakage is inside partition wall. Called local plumber.
+                      {commTab === 'internal' && (() => {
+                        const internalMsgs = (selectedTicket.messages || []).filter(m => m.is_internal);
+                        if (internalMsgs.length === 0) {
+                          return <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 20 }}>No internal comments.</div>;
+                        }
+                        return internalMsgs.map((msg, index) => (
+                          <div key={index} style={{ alignSelf: 'flex-start', maxWidth: '75%', width: '100%' }}>
+                            <div style={{ padding: '10px 12px', background: 'rgba(251,191,36,0.1)', borderLeft: '4px solid #fbbf24', borderRadius: 4, fontSize: 11, color: 'var(--text-primary)' }}>
+                              <strong>Internal Note:</strong> {msg.text}
+                            </div>
+                            <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', marginTop: 2 }}>{msg.timestamp}</span>
                           </div>
-                        </div>
-                      )}
+                        ));
+                      })()}
 
                       {commTab === 'emails' && (
                         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
@@ -858,29 +940,67 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
                       {commTab === 'history' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingLeft: 10, borderLeft: '2px solid var(--border-color)' }}>
                           <div style={{ fontSize: 11 }}>
-                            <strong style={{ color: 'var(--brand-color)' }}>Created</strong> - 2026-06-16 20:25:00
+                            <strong style={{ color: 'var(--brand-color)' }}>Created</strong> - {selectedTicket.dateRaised}
                           </div>
-                          <div style={{ fontSize: 11 }}>
-                            <strong>Status Changed</strong> to Open - 2026-06-16 20:25:10
-                          </div>
+                          {(selectedTicket.messages || []).filter(m => m.sender === 'system').map((m, idx) => (
+                            <div key={idx} style={{ fontSize: 11 }}>
+                              <strong>System Log:</strong> {m.text} - {m.timestamp}
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
 
                     {/* Input text controls */}
-                    {commTab === 'public' && (
-                      <form onSubmit={handleSendAdminMessage} style={{ padding: 12, borderTop: '1px solid var(--border-color)', display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <input 
-                          type="text" 
-                          value={messageText}
-                          onChange={(e) => setMessageText(e.target.value)}
-                          placeholder="Type public comment response..." 
-                          className="form-input" 
-                          style={{ flex: 1 }}
-                        />
-                        <button type="submit" className="btn btn-primary" style={{ padding: '10px 14px' }}>
-                          <Send size={14} />
-                        </button>
+                    {(commTab === 'public' || commTab === 'internal') && (
+                      <form onSubmit={handleSendAdminMessage} style={{ padding: 12, borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <input 
+                            type="text" 
+                            value={messageText}
+                            onChange={(e) => setMessageText(e.target.value)}
+                            placeholder={isInternal ? "Type internal comment..." : "Type public comment response..."} 
+                            className="form-input" 
+                            style={{ flex: 1 }}
+                          />
+                          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 6, border: '1px solid var(--border-color)', margin: 0 }}>
+                            <Paperclip size={14} style={{ color: attachedFile ? 'var(--brand-color)' : 'var(--text-secondary)' }} />
+                            <input 
+                              type="file" 
+                              id="comment-file-input"
+                              style={{ display: 'none' }} 
+                              onChange={(e) => setAttachedFile(e.target.files[0])} 
+                            />
+                            {attachedFile && <span style={{ fontSize: 10, marginLeft: 4, maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{attachedFile.name}</span>}
+                          </label>
+                          <button type="submit" className="btn btn-primary" style={{ padding: '10px 14px' }}>
+                            <Send size={14} />
+                          </button>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={isInternal} 
+                              onChange={(e) => setIsInternal(e.target.checked)} 
+                            />
+                            Internal Comment (Invisible to Tenant)
+                          </label>
+                          {attachedFile && (
+                            <button 
+                              type="button" 
+                              className="btn btn-secondary btn-sm" 
+                              onClick={() => {
+                                setAttachedFile(null);
+                                const fileInput = document.getElementById('comment-file-input');
+                                if (fileInput) fileInput.value = '';
+                              }}
+                              style={{ padding: '2px 6px', fontSize: 9 }}
+                            >
+                              Remove Attachment
+                            </button>
+                          )}
+                        </div>
                       </form>
                     )}
                   </>
@@ -895,8 +1015,12 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
           ) : (
             /* KANBAN VIEW FOR ISSUES */
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, minHeight: 400 }}>
-              {['Open', 'Assigned', 'In Progress', 'Resolved', 'Closed'].map(status => {
-                const statusTickets = localTickets.filter(t => (t.status || 'open').toLowerCase() === status.toLowerCase());
+              {['Open', 'Replied', 'On Hold', 'Resolved', 'Closed'].map(status => {
+                const statusTickets = localTickets.filter(t => {
+                  const tStatus = (t.status || 'Open').toLowerCase().replace(/[^a-z0-9]/g, '');
+                  const colStatus = status.toLowerCase().replace(/[^a-z0-9]/g, '');
+                  return tStatus === colStatus;
+                });
                 return (
                   <div 
                     key={status} 
@@ -926,7 +1050,8 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
                 );
               })}
             </div>
-          )}
+          )
+}
         </div>
       )}
 

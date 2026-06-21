@@ -74,6 +74,12 @@ export default function Maintenance({
   const [woProperty, setWoProperty] = useState('');
   const [woAssetId, setWoAssetId] = useState('');
 
+  // Task DocType Specific Form States
+  const [woSubject, setWoSubject] = useState('');
+  const [woExpStartDate, setWoExpStartDate] = useState('');
+  const [woExpEndDate, setWoExpEndDate] = useState('');
+  const [woStatus, setWoStatus] = useState('Open');
+
   // Sched extra state
   const [schedAssetId, setSchedAssetId] = useState('');
   const [schedUnits, setSchedUnits] = useState([]);
@@ -168,12 +174,12 @@ export default function Maintenance({
     };
   }, [schedPropertyId, erpnextConfig]);
 
-  // Fetch Work Orders from ERPNext
+  // Fetch Tasks from ERPNext (Linked to App Work Orders)
   useEffect(() => {
     if (!erpnextConfig || !erpnextConfig.url) return;
     const fetchWorkOrders = async () => {
       try {
-        const res = await fetch(`${erpnextConfig.url}/api/resource/Work%20Order?fields=%5B%22name%22%2C%22production_item%22%2C%22qty%22%2C%22status%22%2C%22description%22%2C%22company%22%5D&limit_page_length=200`, {
+        const res = await fetch(`${erpnextConfig.url}/api/resource/Task?fields=%5B%22name%22%2C%22subject%22%2C%22status%22%2C%22description%22%2C%22priority%22%2C%22exp_start_date%22%2C%22exp_end_date%22%2C%22custom_property%22%2C%22custom_technician%22%2C%22custom_vendor%22%2C%22custom_estimated_cost%22%2C%22custom_maintenance_schedule%22%2C%22custom_asset%22%5D&limit_page_length=200`, {
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json'
@@ -183,28 +189,32 @@ export default function Maintenance({
           const json = await res.json();
           const list = json.data || json;
           if (Array.isArray(list)) {
-            setWorkOrders(list.map(wo => ({
-              id: wo.name,
-              property: "Stratford Court Apartments",
-              unit: "Flat 1A",
-              category: "General",
-              technician: "None",
-              vendor: "None",
+            setWorkOrders(list.map(t => ({
+              id: t.name,
+              property: getPropertyNameById(t.custom_property) || t.custom_property || "Stratford Court Apartments",
+              unit: t.custom_asset || "Flat 1A",
+              category: t.subject ? t.subject.split(' ')[0] : "General",
+              technician: t.custom_technician || "None",
+              vendor: t.custom_vendor || "None",
               estHours: 4,
-              estCost: 150,
+              estCost: Number(t.custom_estimated_cost) || 150,
               actualCost: 0,
-              status: wo.status || "Open",
-              description: wo.description || "",
-              consumedItems: []
+              status: t.status || "Open",
+              description: t.description || t.subject || "",
+              consumedItems: [],
+              expStartDate: t.exp_start_date,
+              expEndDate: t.exp_end_date,
+              priority: t.priority,
+              scheduleId: t.custom_maintenance_schedule
             })));
           }
         }
       } catch (err) {
-        console.warn('Failed to fetch ERPNext Work Orders:', err);
+        console.warn('ERPNext Task fetch failed, using fallback mock data:', err);
       }
     };
     fetchWorkOrders();
-  }, [erpnextConfig]);
+  }, [erpnextConfig, localSchedules]);
 
   useEffect(() => {
     if (schedules && schedules.length > 0) {
@@ -422,10 +432,13 @@ export default function Maintenance({
   const handleCreateWO = async (e) => {
     e.preventDefault();
     const payload = {
-      production_item: woProperty || 'General Item',
-      qty: 1,
-      company: 'CARPENTERS PROPERTIES PTE LIMITED',
+      subject: woSubject || `Maint: ${woCategory} - ${woScheduleId}`,
       description: woDescription || `Work Order for maintenance schedule: ${woScheduleId}`,
+      status: woStatus,
+      priority: woPriority === 'Critical' ? 'Urgent' : woPriority,
+      exp_start_date: woExpStartDate || new Date().toISOString().split('T')[0],
+      exp_end_date: woExpEndDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      custom_property: woProperty || selectedPropertyId,
       custom_technician: woTechnician,
       custom_vendor: woVendor,
       custom_estimated_cost: Number(woEstCost),
@@ -436,7 +449,7 @@ export default function Maintenance({
     if (erpnextConfig && erpnextConfig.url) {
       try {
         const csrfToken = getCsrfToken();
-        const res = await fetch(`${erpnextConfig.url}/api/resource/Work%20Order`, {
+        const res = await fetch(`${erpnextConfig.url}/api/resource/Task`, {
           method: 'POST',
           credentials: 'include',
           headers: {
@@ -451,45 +464,49 @@ export default function Maintenance({
           const newWO = {
             id: doc.name,
             relatedTicket: woScheduleId || "Manual Request",
-            property: getPropertyNameById(woProperty),
-            unit: "Flat 1A",
+            property: getPropertyNameById(payload.custom_property) || payload.custom_property || "Stratford Court Apartments",
+            unit: payload.custom_asset || "Flat 1A",
             category: woCategory,
             technician: woTechnician || "None",
             vendor: woVendor || "None",
             estHours: 4,
             estCost: Number(woEstCost),
             actualCost: 0,
-            status: "Open",
-            sla: woPriority,
-            dueDate: "2026-06-20",
-            consumedItems: []
+            status: payload.status,
+            description: payload.description,
+            consumedItems: [],
+            expStartDate: payload.exp_start_date,
+            expEndDate: payload.exp_end_date,
+            priority: payload.priority
           };
           setWorkOrders([newWO, ...workOrders]);
           setShowWOModal(false);
         } else {
           const errMsg = await res.text();
-          alert(`Failed to create Work Order in ERPNext: ${errMsg}`);
+          alert(`Failed to create Task in ERPNext: ${errMsg}`);
         }
       } catch (err) {
         console.error(err);
-        alert(`Error creating Work Order: ${err.message}`);
+        alert(`Error creating Task: ${err.message}`);
       }
     } else {
       const newWO = {
-        id: `WO-2026-000${workOrders.length + 1}`,
+        id: `TASK-2026-000${workOrders.length + 1}`,
         relatedTicket: woScheduleId || "Manual Request",
-        property: getPropertyNameById(woProperty),
-        unit: "Flat 1A",
+        property: getPropertyNameById(payload.custom_property) || payload.custom_property || "Stratford Court Apartments",
+        unit: payload.custom_asset || "Flat 1A",
         category: woCategory,
         technician: woTechnician || "None",
         vendor: woVendor || "None",
         estHours: 4,
         estCost: Number(woEstCost),
         actualCost: 0,
-        status: Number(woEstCost) < 5000 ? "Assigned" : "Pending Approval",
-        sla: woPriority,
-        dueDate: "2026-06-20",
-        consumedItems: []
+        status: payload.status,
+        description: payload.description,
+        consumedItems: [],
+        expStartDate: payload.exp_start_date,
+        expEndDate: payload.exp_end_date,
+        priority: payload.priority
       };
       setWorkOrders([newWO, ...workOrders]);
       setShowWOModal(false);
@@ -863,6 +880,10 @@ export default function Maintenance({
                     setWoCategory(selectedSchedule.type || 'General');
                     setWoScheduleId(selectedSchedule.name);
                     setWoAssetId(selectedSchedule.custom_asset || '');
+                    setWoSubject(`Maint: ${selectedSchedule.type || 'General'} - ${selectedSchedule.name}`);
+                    setWoExpStartDate(new Date().toISOString().split('T')[0]);
+                    setWoExpEndDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+                    setWoStatus('Open');
                     setShowWOModal(true);
                   }}
                 >
@@ -1280,8 +1301,13 @@ export default function Maintenance({
               <h3>Create Work Order</h3>
               <button onClick={() => setShowWOModal(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 20 }}>×</button>
             </div>
-            <form onSubmit={handleCreateWO}>
-              <div className="modal-body">
+             <form onSubmit={handleCreateWO}>
+              <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                <div className="form-group">
+                  <label className="form-label">Task Subject (Required)</label>
+                  <input type="text" value={woSubject} onChange={(e) => setWoSubject(e.target.value)} className="form-input" required />
+                </div>
+
                 <div className="form-group">
                   <label className="form-label">Property group</label>
                   <select value={selectedPropertyId} onChange={(e) => setSelectedPropertyId(e.target.value)} className="form-select" required disabled={!!woScheduleId}>
@@ -1291,6 +1317,7 @@ export default function Maintenance({
                     ))}
                   </select>
                 </div>
+
                 <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
                   <div className="form-group">
                     <label className="form-label">Category</label>
@@ -1308,6 +1335,35 @@ export default function Maintenance({
                       <option value="High">High</option>
                       <option value="Critical">Critical</option>
                     </select>
+                  </div>
+                </div>
+
+                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
+                  <div className="form-group">
+                    <label className="form-label">Task Status</label>
+                    <select value={woStatus} onChange={(e) => setWoStatus(e.target.value)} className="form-select">
+                      <option value="Open">Open</option>
+                      <option value="Working">Working</option>
+                      <option value="Pending Review">Pending Review</option>
+                      <option value="Overdue">Overdue</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Estimated Cost ($)</label>
+                    <input type="number" value={woEstCost} onChange={(e) => setWoEstCost(e.target.value)} className="form-input" required />
+                  </div>
+                </div>
+
+                <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
+                  <div className="form-group">
+                    <label className="form-label">Expected Start Date</label>
+                    <input type="date" value={woExpStartDate} onChange={(e) => setWoExpStartDate(e.target.value)} className="form-input" required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Expected End Date</label>
+                    <input type="date" value={woExpEndDate} onChange={(e) => setWoExpEndDate(e.target.value)} className="form-input" required />
                   </div>
                 </div>
 
@@ -1350,8 +1406,8 @@ export default function Maintenance({
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Estimated Cost ($)</label>
-                  <input type="number" value={woEstCost} onChange={(e) => setWoEstCost(e.target.value)} className="form-input" required />
+                  <label className="form-label">Task Description</label>
+                  <textarea value={woDescription} onChange={(e) => setWoDescription(e.target.value)} className="form-input" rows="3" />
                 </div>
               </div>
               <div className="modal-footer">

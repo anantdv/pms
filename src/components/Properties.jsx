@@ -163,6 +163,33 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
   const [loadedUnitDetails, setLoadedUnitDetails] = useState({});
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [loadingUnits, setLoadingUnits] = useState(false);
+  const [showUiFields, setShowUiFields] = useState([]);
+
+  // Fetch Item DocType fields to filter unit fields by 'show_on_ui_app'
+  useEffect(() => {
+    if (!erpnextConfig || !erpnextConfig.url) return;
+    const fetchDocTypeFields = async () => {
+      try {
+        const res = await fetch(`${erpnextConfig.url}/api/resource/DocType/Item`, {
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const doctype = json.data || json;
+          if (doctype && Array.isArray(doctype.fields)) {
+            const allowed = doctype.fields
+              .filter(f => f.show_on_ui_app === 1 || f.show_on_ui_app === true)
+              .map(f => f.fieldname);
+            setShowUiFields(allowed);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch Item DocType fields:', err);
+      }
+    };
+    fetchDocTypeFields();
+  }, [erpnextConfig]);
 
   // Form states
   const [name, setName] = useState('');
@@ -431,7 +458,11 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
 
     Object.keys(details).forEach(key => {
       const kLower = key.toLowerCase().replace(/_/g, ' ').trim();
-      if (!blacklist.includes(key.toLowerCase()) && !blacklist.includes(kLower)) {
+      const isAllowed = showUiFields.length > 0
+        ? showUiFields.includes(key)
+        : (!blacklist.includes(key.toLowerCase()) && !blacklist.includes(kLower));
+
+      if (isAllowed) {
         fields.push({
           label: key.replace(/^custom_/, '').replace(/_custom_/gi, '_').replace(/custom/gi, '').replace(/_/g, ' ').trim(),
           value: String(details[key])

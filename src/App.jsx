@@ -189,8 +189,7 @@ export default function App() {
   // Sync with ERPNext server API
   useEffect(() => {
     async function fetchERPNextData() {
-      setDataLoading(true);
-      try {
+      if (ERPNEXT_CONFIG && ERPNEXT_CONFIG.url) {
         let finalProps = [];
         let finalBookings = [];
 
@@ -764,10 +763,9 @@ export default function App() {
         monthlyRevenue: parseFloat((currentMonthRevenue / 1000).toFixed(1)) || 0,
         pendingMaintenance: pendingMaintCount || 0
       });
-      } finally {
-        setDataLoading(false);
-      }
+      setDataLoading(false);
     }
+  }
 
     fetchERPNextData();
   }, [properties.length, bookings.length, invoices.length, schedules.length, currentTab]);
@@ -1286,12 +1284,19 @@ export default function App() {
   };
 
   const handleAddSupportMessage = async (ticketId, message) => {
-    setSupportTickets(supportTickets.map(t => {
+    let finalCommentText = message.text || '';
+    
+    setSupportTickets(prev => prev.map(t => {
       if (t.id === ticketId) {
         return {
           ...t,
           lastUpdated: 'Just now',
-          messages: [...t.messages, message]
+          messages: [...(t.messages || []), {
+            sender: 'admin',
+            text: message.text + (message.file ? ` [Attachment: ${message.file.name}]` : ''),
+            timestamp: 'Just now',
+            is_internal: message.isInternal
+          }]
         };
       }
       return t;
@@ -1299,6 +1304,33 @@ export default function App() {
 
     if (ERPNEXT_CONFIG && ERPNEXT_CONFIG.url && !ticketId.startsWith('SUP-')) {
       try {
+        let fileUrl = '';
+        if (message.file) {
+          const formData = new FormData();
+          formData.append('file', message.file);
+          formData.append('doctype', 'Issue');
+          formData.append('docname', ticketId);
+          formData.append('is_private', '0');
+
+          const uploadRes = await fetch(`${ERPNEXT_CONFIG.url}/api/method/upload_file`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'X-Frappe-CSRF-Token': getCsrfToken()
+            },
+            body: formData
+          });
+          if (uploadRes.ok) {
+            const uploadJson = await uploadRes.json();
+            if (uploadJson.message && uploadJson.message.file_url) {
+              fileUrl = uploadJson.message.file_url;
+              finalCommentText += `<br><a href="${fileUrl}" target="_blank">Attachment: ${message.file.name}</a>`;
+            }
+          } else {
+            console.warn('File upload failed in ERPNext:', await uploadRes.text());
+          }
+        }
+
         await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Communication`, {
           method: 'POST',
           credentials: 'include',
@@ -1311,8 +1343,9 @@ export default function App() {
             comment_type: 'Comment',
             reference_doctype: 'Issue',
             reference_name: ticketId,
-            content: message.text,
-            sender: 'devteam@anantdv.com'
+            content: finalCommentText,
+            sender: 'devteam@anantdv.com',
+            is_internal: message.isInternal ? 1 : 0
           })
         });
       } catch (err) {
