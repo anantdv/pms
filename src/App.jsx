@@ -348,7 +348,7 @@ export default function App() {
       // 8. Fetch Sales Invoice for Billing Ledger
       let finalInvoices = [];
       try {
-        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Sales%20Invoice?fields=%5B%22name%22%2C%22customer%22%2C%22customer_name%22%2C%22posting_date%22%2C%22due_date%22%2C%22grand_total%22%2C%22status%22%5D&limit_page_length=500`, {
+        const res = await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Sales%20Invoice?fields=%5B%22name%22%2C%22customer%22%2C%22customer_name%22%2C%22posting_date%22%2C%22due_date%22%2C%22grand_total%22%2C%22outstanding_amount%22%2C%22status%22%5D&limit_page_length=500`, {
           credentials: 'include',
       headers: {
             'Content-Type': 'application/json'
@@ -372,6 +372,7 @@ export default function App() {
                 customer: inv.customer,
                 propertyId: 'PROP-2041',
                 amount: inv.grand_total || 2500,
+                outstandingAmount: inv.outstanding_amount !== undefined ? inv.outstanding_amount : (statusLower === 'paid' ? 0 : inv.grand_total || 2500),
                 issuedDate: inv.posting_date || '2026-06-01',
                 dueDate: inv.due_date || '2026-06-10',
                 status: mappedStatus
@@ -768,7 +769,7 @@ export default function App() {
     }
 
     fetchERPNextData();
-  }, [properties.length, bookings.length, invoices.length, schedules.length]);
+  }, [properties.length, bookings.length, invoices.length, schedules.length, currentTab]);
 
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -1139,7 +1140,7 @@ export default function App() {
       return sch;
     }));
 
-    if (ERPNEXT_CONFIG && !scheduleName.startsWith('SCH-')) {
+    if (ERPNEXT_CONFIG) {
       try {
         await fetch(`${ERPNEXT_CONFIG.url}/api/resource/Maintenance%20Schedule/${scheduleName}`, {
           method: 'PUT',
@@ -1666,7 +1667,7 @@ export default function App() {
 
         {/* 4 Metric Cards */}
         <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20 }}>
-          <div className="stat-card" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div className="stat-card" style={{ display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer' }} onClick={() => setCurrentTab('properties')}>
             <div style={{ background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: '#fff', padding: 12, borderRadius: 12, display: 'flex' }}>
               <Building size={24} />
             </div>
@@ -1678,7 +1679,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="stat-card" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div className="stat-card" style={{ display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer' }} onClick={() => setCurrentTab('bookings')}>
             <div style={{ background: 'linear-gradient(135deg, #8b5cf6, #d946ef)', color: '#fff', padding: 12, borderRadius: 12, display: 'flex' }}>
               <TrendingUp size={24} />
             </div>
@@ -1690,7 +1691,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="stat-card" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div className="stat-card" style={{ display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer' }} onClick={() => setCurrentTab('invoices')}>
             <div style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', padding: 12, borderRadius: 12, display: 'flex' }}>
               <Receipt size={24} />
             </div>
@@ -1702,7 +1703,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="stat-card" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div className="stat-card" style={{ display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer' }} onClick={() => setCurrentTab('maintenance')}>
             <div style={{ background: 'linear-gradient(135deg, #34d399, #059669)', color: '#fff', padding: 12, borderRadius: 12, display: 'flex' }}>
               <Hammer size={24} />
             </div>

@@ -172,29 +172,39 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
   const [rent, setRent] = useState('');
   const [area, setArea] = useState('');
 
+  const [alertState, setAlertState] = useState({ show: false, success: true, message: '' });
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name || !address || !rent || !area) return;
+    if (!name || !address || !rent || !area) {
+      setAlertState({ show: true, success: false, message: 'Please fill in all required fields!' });
+      return;
+    }
 
-    onAddProperty({
-      id: `PROP-${Math.floor(1000 + Math.random() * 9000)}`,
-      name,
-      type,
-      address,
-      unitsCount: Number(unitsCount),
-      rent: Number(rent),
-      area: Number(area),
-      listedOnline: false,
-      occupancy: 0
-    });
+    try {
+      onAddProperty({
+        id: `PROP-${Math.floor(1000 + Math.random() * 9000)}`,
+        name,
+        type,
+        address,
+        unitsCount: Number(unitsCount),
+        rent: Number(rent),
+        area: Number(area),
+        listedOnline: false,
+        occupancy: 0
+      });
 
-    setName('');
-    setType('residential');
-    setAddress('');
-    setUnitsCount(1);
-    setRent('');
-    setArea('');
-    setShowAddModal(false);
+      setName('');
+      setType('residential');
+      setAddress('');
+      setUnitsCount(1);
+      setRent('');
+      setArea('');
+      setShowAddModal(false);
+      setAlertState({ show: true, success: true, message: 'Property saved successfully!' });
+    } catch (err) {
+      setAlertState({ show: true, success: false, message: err.message || 'Failed to save property portfolio!' });
+    }
   };
 
   // Fetch details and units from ERPNext API
@@ -215,7 +225,7 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
       try {
         const res = await fetch(`${erpnextConfig.url}/api/method/erpnext.api.get_property_group?name=${selectedProp.id}`, {
           credentials: 'include',
-      headers: {
+          headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -236,7 +246,7 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
       try {
         const res = await fetch(`${erpnextConfig.url}/api/method/erpnext.api.get_units?property_group=${selectedProp.id}`, {
           credentials: 'include',
-      headers: {
+          headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -291,7 +301,7 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
     try {
       const res = await fetch(`${erpnextConfig.url}/api/method/erpnext.api.get_unit?item_code=${unitId}`, {
         credentials: 'include',
-      headers: {
+        headers: {
           'Content-Type': 'application/json'
         }
       });
@@ -392,6 +402,44 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
         </div>
       </div>
     );
+  };
+
+  const getCleanUnitFields = (details, matchedUnit) => {
+    const rentVal = details.rent || details.valuation_rate || matchedUnit?.rent || 0;
+    const areaVal = details.area || details.property_area || matchedUnit?.area || 0;
+    const areaUnit = details.property_area_unit || 'Sqm';
+    
+    const fields = [
+      { label: 'Property Rent', value: `$${rentVal.toLocaleString()}/mo` },
+      { label: 'Property Area', value: `${areaVal} ${areaUnit}` }
+    ];
+
+    if (details.power_reading) fields.push({ label: 'Power Grid reading', value: details.power_reading });
+    if (details.water_reading) fields.push({ label: 'Water reading', value: details.water_reading });
+    if (details.unit_owner || details.owner) fields.push({ label: 'Unit Ownership', value: details.unit_owner || details.owner });
+
+    // Filter out blacklisted fields dynamically
+    const blacklist = [
+      'rent', 'area', 'power_reading', 'water_reading', 'status', 'idx', 'external_tenant', 'internal_tenant',
+      'external tenant', 'internal tenant', 'external', 'internal',
+      'item_code', 'stock_uom', 'company', 'average_carpet_area_of_units', 'total_floors',
+      'product_bundle_id', 'is_recommended', 'property_owner', 'property_owned_by', 'bundle_price',
+      'valuation_rate', 'total_services_prices', 'item code', 'stock uom', 'average carpet area of units',
+      'total floors', 'product bundle id', 'is recommended', 'property owner', 'property owned by',
+      'bundle price', 'valuation rate', 'total services prices', 'property_area', 'property_area_unit'
+    ];
+
+    Object.keys(details).forEach(key => {
+      const kLower = key.toLowerCase().replace(/_/g, ' ').trim();
+      if (!blacklist.includes(key.toLowerCase()) && !blacklist.includes(kLower)) {
+        fields.push({
+          label: key.replace(/^custom_/, '').replace(/_custom_/gi, '_').replace(/custom/gi, '').replace(/_/g, ' ').trim(),
+          value: String(details[key])
+        });
+      }
+    });
+
+    return fields;
   };
 
   return (
@@ -565,61 +613,12 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                   </div>
 
                   <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 11, color: 'var(--text-secondary)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Standard Rent:</span>
-                      <strong style={{ color: 'var(--brand-color)' }}>${(details.rent || matchedUnit?.rent || 0).toLocaleString()}/mo</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Estimated Size:</span>
-                      <strong style={{ color: 'var(--text-primary)' }}>{(details.area || matchedUnit?.area || 0).toLocaleString()} sq ft</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Power Grid reading:</span>
-                      <strong style={{ color: 'var(--color-success)' }}>{details.power_reading || 'Active'}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Water reading:</span>
-                      <strong style={{ color: 'var(--color-success)' }}>{details.water_reading || 'Active'}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Unit Ownership:</span>
-                      <strong style={{ color: 'var(--text-primary)' }}>{details.unit_owner || details.owner || 'N/A'}</strong>
-                    </div>
-                    {Object.keys(details).filter(key => {
-                      const keysToHide = [
-                        'rent', 'area', 'power_reading', 'water_reading', 'status',
-                        'brand', 'shelf_life_in_days', 'end_of_life', 'default_material_request_type',
-                        'valuation_method', 'warranty_period', 'weight_per_unit', 'weight_uom',
-                        'allow_negative_stock', 'has_batch_no', 'create_new_batch', 'batch_number_series',
-                        'has_expiry_date', 'retain_sample', 'sample_quantity', 'has_serial_no',
-                        'serial_no_series', 'variant_of', 'variant_based_on', 'enable_deferred_expense',
-                        'no_of_months_exp', 'enable_deferred_revenue', 'no_of_months', 'purchase_uom',
-                        'min_order_qty', 'safety_stock', 'is_purchase_item', 'lead_time_days',
-                        'last_purchase_rate', 'is_customer_provided_item', 'customer', 'delivered_by_supplier',
-                        'country_of_origin', 'customs_tariff_number', 'sales_uom', 'grant_commission',
-                        'is_sales_item', 'max_discount', 'inspection_required_before_purchase',
-                        'quality_inspection_template', 'inspection_required_before_delivery',
-                        'include_item_in_manufacturing', 'is_sub_contracted_item', 'default_bom',
-                        'customer_code', 'default_item_manufacturer', 'default_manufacturer_part_no',
-                        'total_projected_qty', 'doctype', 'barcodes', 'custom_property_reference',
-                        'taxes', 'item_defaults', 'uoms', 'images', 'custom_unit_images',
-                        'custom_booking_reference', 'attributes', 'customer_items', 'supplier_items',
-                        'custom_booking_history', 'reorder_levels', 'name', 'owner', 'creation', 'modified',
-                        'modified_by', 'docstatus', 'idx', 'naming_series', 'item_group', 'item_name', 'description',
-                        'disabled', 'allow_alternative_item', 'is_stock_item', 'has_variants', 'opening_stock',
-                        'standard_rate', 'is_fixed_asset', 'auto_create_assets', 'is_grouped_asset', 'asset_category',
-                        'asset_naming_series', 'over_delivery_receipt_allowance', 'over_billing_allowance', 'image',
-                        'item_code', 'stock_uom', 'average', 'total_floor', 'total_bundle', 'category', 'property_owned_by',
-                        'bundle_price', 'total_service_price', 'item_code/stock_uom', 'unit_owner'
-                      ];
-                      return !keysToHide.includes(key.toLowerCase());
-                    }).map(key => (
-                      <div key={key} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ textTransform: 'capitalize' }}>{key.replace(/^custom_/, '').replace(/_custom_/gi, '_').replace(/custom/gi, '').replace(/_/g, ' ').trim()}:</span>
-                        <strong style={{ color: 'var(--text-primary)' }}>{String(details[key])}</strong>
+                    {getCleanUnitFields(details, matchedUnit).map(f => (
+                      <div key={f.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ textTransform: 'capitalize' }}>{f.label}:</span>
+                        <strong style={{ color: 'var(--text-primary)' }}>{f.value}</strong>
                       </div>
                     ))}
-
                   </div>
                 </div>
               );
@@ -662,10 +661,10 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <SecureImage 
-                            src={prop.image || fallbackImages[prop.type]?.[0] || fallbackImages.commercial[0]} 
-                            alt="" 
-                            style={{ width: 26, height: 26, objectFit: 'cover', borderRadius: '50%', border: '1px solid var(--border-color)' }} 
-                            erpnextConfig={erpnextConfig}
+                             src={prop.image || fallbackImages[prop.type]?.[0] || fallbackImages.commercial[0]} 
+                             alt="" 
+                             style={{ width: 26, height: 26, objectFit: 'cover', borderRadius: '50%', border: '1px solid var(--border-color)' }} 
+                             erpnextConfig={erpnextConfig}
                           />
                           <div>
                             <div style={{ fontWeight: 600 }}>{prop.name}</div>
@@ -713,7 +712,7 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
           {selectedProp && (() => {
             const p = detailedProp || selectedProp;
             return (
-              <div className="card-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, animation: 'fadeIn 0.2s ease-out' }}>
+              <div className="card-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, animation: 'fadeIn 0.2s ease-out', position: 'relative' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: 14 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Info size={18} style={{ color: 'var(--brand-color)' }} />
@@ -756,10 +755,6 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                       <span style={{ fontWeight: 600 }}>{p.lease_end_date || 'N/A'}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>Property Owner:</span>
-                      <span style={{ fontWeight: 600 }}>{p.property_owner || p.owner || 'N/A'}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ color: 'var(--text-muted)' }}>Occupied Units:</span>
                       <span style={{ fontWeight: 600, color: 'var(--color-danger)' }}>
                         {propertyUnits.filter(u => (u.status || '').toLowerCase() === 'occupied').length}
@@ -775,7 +770,8 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                       'id', 'name', 'type', 'land_and_building_type', 'address', 'land_description', 
                       'lease_end_date', 'rent', 'area', 'unitsCount', 'listedOnline', 'occupancy',
                       'created_by', 'modified', 'docstatus', 'doctype', 'gallery', 'image', 'owner',
-                      'creation', 'modified_by', 'property_owner', 'internal', 'external'
+                      'creation', 'modified_by', 'property_owner', 'internal', 'external', 'idx',
+                      'external_tenant', 'internal_tenant', 'external tenant', 'internal tenant'
                     ].includes(key.toLowerCase())).map(key => (
                       <div key={key} style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: 'var(--text-muted)', textTransform: 'capitalize' }}>{key.replace(/_/g, ' ')}:</span>
@@ -845,55 +841,12 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                                         </div>
                                       );
                                     })()}
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                      <span style={{ color: 'var(--text-secondary)' }}>Standard Rent:</span>
-                                      <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>${(details.rent || unit.rent || 0).toLocaleString()}/mo</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                      <span style={{ color: 'var(--text-secondary)' }}>Est. Area Size:</span>
-                                      <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{(details.area || unit.area || 0).toLocaleString()} sq ft</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                      <span style={{ color: 'var(--text-secondary)' }}>Power Grid:</span>
-                                      <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>{details.power_reading || 'Active'}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                      <span style={{ color: 'var(--text-secondary)' }}>Water Connection:</span>
-                                      <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>{details.water_reading || 'Active'}</span>
-                                    </div>
-                                    {Object.keys(details).filter(key => {
-                                      const keysToHide = [
-                                        'rent', 'area', 'power_reading', 'water_reading', 'status',
-                                        'brand', 'shelf_life_in_days', 'end_of_life', 'default_material_request_type',
-                                        'valuation_method', 'warranty_period', 'weight_per_unit', 'weight_uom',
-                                        'allow_negative_stock', 'has_batch_no', 'create_new_batch', 'batch_number_series',
-                                        'has_expiry_date', 'retain_sample', 'sample_quantity', 'has_serial_no',
-                                        'serial_no_series', 'variant_of', 'variant_based_on', 'enable_deferred_expense',
-                                        'no_of_months_exp', 'enable_deferred_revenue', 'no_of_months', 'purchase_uom',
-                                        'min_order_qty', 'safety_stock', 'is_purchase_item', 'lead_time_days',
-                                        'last_purchase_rate', 'is_customer_provided_item', 'customer', 'delivered_by_supplier',
-                                        'country_of_origin', 'customs_tariff_number', 'sales_uom', 'grant_commission',
-                                        'is_sales_item', 'max_discount', 'inspection_required_before_purchase',
-                                        'quality_inspection_template', 'inspection_required_before_delivery',
-                                        'include_item_in_manufacturing', 'is_sub_contracted_item', 'default_bom',
-                                        'customer_code', 'default_item_manufacturer', 'default_manufacturer_part_no',
-                                        'total_projected_qty', 'doctype', 'barcodes', 'custom_property_reference',
-                                        'taxes', 'item_defaults', 'uoms', 'images', 'custom_unit_images',
-                                        'custom_booking_reference', 'attributes', 'customer_items', 'supplier_items',
-                                        'custom_booking_history', 'reorder_levels', 'name', 'owner', 'creation', 'modified',
-                                        'modified_by', 'docstatus', 'idx', 'naming_series', 'item_group', 'item_name', 'description',
-                                        'disabled', 'allow_alternative_item', 'is_stock_item', 'has_variants', 'opening_stock',
-                                        'standard_rate', 'is_fixed_asset', 'auto_create_assets', 'is_grouped_asset', 'asset_category',
-                                        'asset_naming_series', 'over_delivery_receipt_allowance', 'over_billing_allowance', 'image'
-                                      ];
-                                      return !keysToHide.includes(key.toLowerCase());
-                                    }).map(key => (
-                                      <div key={key} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span style={{ color: 'var(--text-secondary)', textTransform: 'capitalize' }}>{key.replace(/^custom_/, '').replace(/_custom_/gi, '_').replace(/custom/gi, '').replace(/_/g, ' ').trim()}:</span>
-                                        <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{String(details[key])}</span>
+                                    {getCleanUnitFields(details, unit).map(f => (
+                                      <div key={f.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span style={{ color: 'var(--text-secondary)' }}>{f.label}:</span>
+                                        <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{f.value}</span>
                                       </div>
                                     ))}
-
                                   </>
                                 ) : (
                                   <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '6px 0' }}>Loading unit details...</div>
@@ -938,10 +891,15 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
       {/* Add Property Modal */}
       {showAddModal && (
         <div className="modal-overlay">
-          <div className="modal-content">
+          <div className="modal-content" style={{ position: 'relative' }}>
+            <button 
+              onClick={() => setShowAddModal(false)}
+              style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 20 }}
+            >
+              ×
+            </button>
             <div className="modal-header">
               <h3>Create New Portfolio Asset</h3>
-              <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 20 }}>×</button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body">
@@ -987,6 +945,37 @@ export default function Properties({ properties, onAddProperty, onToggleListOnli
                 <button type="submit" className="btn btn-primary">Save Property</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* SUCCESS / FAILURE ALERT MODAL */}
+      {alertState.show && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 400, position: 'relative' }}>
+            <button 
+              onClick={() => setAlertState({ show: false, success: true, message: '' })} 
+              style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 18 }}
+            >
+              ×
+            </button>
+            <div className="modal-header">
+              <h3>{alertState.success ? 'Success' : 'Notice / Error'}</h3>
+            </div>
+            <div className="modal-body" style={{ padding: '20px 0', textAlign: 'center' }}>
+              <div style={{ color: alertState.success ? '#10b981' : '#ef4444', fontSize: '1.1rem', fontWeight: 600 }}>
+                {alertState.message}
+              </div>
+            </div>
+            <div className="modal-footer" style={{ justifyContent: 'center' }}>
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                onClick={() => setAlertState({ show: false, success: true, message: '' })}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

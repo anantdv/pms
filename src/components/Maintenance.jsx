@@ -70,6 +70,22 @@ export default function Maintenance({
   const [woEstCost, setWoEstCost] = useState(0);
   const [woDescription, setWoDescription] = useState('');
   const [selectedPropertyId, setSelectedPropertyId] = useState('');
+  const [woScheduleId, setWoScheduleId] = useState('');
+  const [woProperty, setWoProperty] = useState('');
+  const [woAssetId, setWoAssetId] = useState('');
+
+  // Sched extra state
+  const [schedAssetId, setSchedAssetId] = useState('');
+  const [schedUnits, setSchedUnits] = useState([]);
+  const [loadingSchedUnits, setLoadingSchedUnits] = useState(false);
+
+  const getCsrfToken = () => {
+    const cookieValue = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('sid='))
+      ?.split('=')[1];
+    return cookieValue || '';
+  };
 
   // Consume parts form states
   const [consumeItemCode, setConsumeItemCode] = useState('');
@@ -87,6 +103,108 @@ export default function Maintenance({
   const [assetsList, setAssetsList] = useState([]);
 
   const [stockItems, setStockItems] = useState([]);
+
+  // Fetch active assets from ERPNext
+  useEffect(() => {
+    if (!erpnextConfig || !erpnextConfig.url) return;
+    const fetchAssets = async () => {
+      try {
+        const res = await fetch(`${erpnextConfig.url}/api/resource/Asset?fields=%5B%22name%22%2C%22asset_name%22%2C%22item_code%22%2C%22status%22%2C%22location%22%5D&limit_page_length=200`, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const list = json.data || json;
+          if (Array.isArray(list)) {
+            setAssetsList(list.map(a => ({
+              id: a.name,
+              name: a.asset_name || a.name,
+              item: a.item_code || 'HVAC System',
+              status: a.status || 'Submitted',
+              location: a.location || 'Stratford Apartments'
+            })));
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch ERPNext Assets:', err);
+      }
+    };
+    fetchAssets();
+  }, [erpnextConfig]);
+
+  // Fetch units for current selected property group in schedule form
+  useEffect(() => {
+    if (!schedPropertyId || !erpnextConfig || !erpnextConfig.url) {
+      setSchedUnits([]);
+      return;
+    }
+    let isMounted = true;
+    const fetchUnits = async () => {
+      setLoadingSchedUnits(true);
+      try {
+        const res = await fetch(`${erpnextConfig.url}/api/method/erpnext.api.get_units?property_group=${encodeURIComponent(schedPropertyId)}`, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        if (res.ok && isMounted) {
+          const json = await res.json();
+          const list = json.message || json.data || [];
+          setSchedUnits(list);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch units for Maintenance Schedule:', err);
+      } finally {
+        if (isMounted) setLoadingSchedUnits(false);
+      }
+    };
+    fetchUnits();
+    return () => {
+      isMounted = false;
+    };
+  }, [schedPropertyId, erpnextConfig]);
+
+  // Fetch Work Orders from ERPNext
+  useEffect(() => {
+    if (!erpnextConfig || !erpnextConfig.url) return;
+    const fetchWorkOrders = async () => {
+      try {
+        const res = await fetch(`${erpnextConfig.url}/api/resource/Work%20Order?fields=%5B%22name%22%2C%22production_item%22%2C%22qty%22%2C%22status%22%2C%22description%22%2C%22company%22%5D&limit_page_length=200`, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const list = json.data || json;
+          if (Array.isArray(list)) {
+            setWorkOrders(list.map(wo => ({
+              id: wo.name,
+              property: "Stratford Court Apartments",
+              unit: "Flat 1A",
+              category: "General",
+              technician: "None",
+              vendor: "None",
+              estHours: 4,
+              estCost: 150,
+              actualCost: 0,
+              status: wo.status || "Open",
+              description: wo.description || "",
+              consumedItems: []
+            })));
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch ERPNext Work Orders:', err);
+      }
+    };
+    fetchWorkOrders();
+  }, [erpnextConfig]);
 
   useEffect(() => {
     if (schedules && schedules.length > 0) {
@@ -224,6 +342,7 @@ export default function Maintenance({
       type: schedType,
       custom_property: schedPropertyId,
       propertyName: propName,
+      custom_asset: schedAssetId,
       status: schedVisitStatus,
       items: [
         {
@@ -231,7 +350,8 @@ export default function Maintenance({
           start_date: schedStartDate,
           end_date: schedEndDate,
           periodicity: schedPeriodicity,
-          description: schedDescription
+          description: schedDescription,
+          asset: schedAssetId
         }
       ],
       schedules: [
@@ -299,26 +419,81 @@ export default function Maintenance({
     }));
   };
 
-  const handleCreateWO = (e) => {
+  const handleCreateWO = async (e) => {
     e.preventDefault();
-    const newWO = {
-      id: `WO-2026-000${workOrders.length + 1}`,
-      relatedTicket: "Manual Request",
-      property: getPropertyNameById(selectedPropertyId),
-      unit: "Flat 1A",
-      category: woCategory,
-      technician: woTechnician || "None",
-      vendor: woVendor || "None",
-      estHours: 4,
-      estCost: Number(woEstCost),
-      actualCost: 0,
-      status: Number(woEstCost) < 5000 ? "Assigned" : "Pending Approval",
-      sla: woPriority,
-      dueDate: "2026-06-20",
-      consumedItems: []
+    const payload = {
+      production_item: woProperty || 'General Item',
+      qty: 1,
+      company: 'CARPENTERS PROPERTIES PTE LIMITED',
+      description: woDescription || `Work Order for maintenance schedule: ${woScheduleId}`,
+      custom_technician: woTechnician,
+      custom_vendor: woVendor,
+      custom_estimated_cost: Number(woEstCost),
+      custom_maintenance_schedule: woScheduleId,
+      custom_asset: woAssetId
     };
-    setWorkOrders([newWO, ...workOrders]);
-    setShowWOModal(false);
+
+    if (erpnextConfig && erpnextConfig.url) {
+      try {
+        const csrfToken = getCsrfToken();
+        const res = await fetch(`${erpnextConfig.url}/api/resource/Work%20Order`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrfToken ? { 'X-Frappe-CSRF-Token': csrfToken } : {})
+          },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const doc = json.data || json;
+          const newWO = {
+            id: doc.name,
+            relatedTicket: woScheduleId || "Manual Request",
+            property: getPropertyNameById(woProperty),
+            unit: "Flat 1A",
+            category: woCategory,
+            technician: woTechnician || "None",
+            vendor: woVendor || "None",
+            estHours: 4,
+            estCost: Number(woEstCost),
+            actualCost: 0,
+            status: "Open",
+            sla: woPriority,
+            dueDate: "2026-06-20",
+            consumedItems: []
+          };
+          setWorkOrders([newWO, ...workOrders]);
+          setShowWOModal(false);
+        } else {
+          const errMsg = await res.text();
+          alert(`Failed to create Work Order in ERPNext: ${errMsg}`);
+        }
+      } catch (err) {
+        console.error(err);
+        alert(`Error creating Work Order: ${err.message}`);
+      }
+    } else {
+      const newWO = {
+        id: `WO-2026-000${workOrders.length + 1}`,
+        relatedTicket: woScheduleId || "Manual Request",
+        property: getPropertyNameById(woProperty),
+        unit: "Flat 1A",
+        category: woCategory,
+        technician: woTechnician || "None",
+        vendor: woVendor || "None",
+        estHours: 4,
+        estCost: Number(woEstCost),
+        actualCost: 0,
+        status: Number(woEstCost) < 5000 ? "Assigned" : "Pending Approval",
+        sla: woPriority,
+        dueDate: "2026-06-20",
+        consumedItems: []
+      };
+      setWorkOrders([newWO, ...workOrders]);
+      setShowWOModal(false);
+    }
   };
 
   const handleConsumeItem = (e) => {
@@ -678,6 +853,21 @@ export default function Maintenance({
                   <div>Start Date: <strong>{selectedSchedule.transaction_date}</strong></div>
                   <div>Status: <strong>{selectedSchedule.status || 'Pending'}</strong></div>
                 </div>
+                <button 
+                  className="btn btn-primary btn-sm" 
+                  style={{ marginTop: 10, width: '100%', background: '#ffdd00', color: '#000000', fontWeight: 600 }}
+                  onClick={() => {
+                    setWoProperty(selectedSchedule.custom_property);
+                    setSelectedPropertyId(selectedSchedule.custom_property);
+                    setWoDescription(`Preventative maintenance for schedule: ${selectedSchedule.name}. Tenant: ${selectedSchedule.customer_name || 'N/A'}`);
+                    setWoCategory(selectedSchedule.type || 'General');
+                    setWoScheduleId(selectedSchedule.name);
+                    setWoAssetId(selectedSchedule.custom_asset || '');
+                    setShowWOModal(true);
+                  }}
+                >
+                  Convert to Work Order
+                </button>
               </div>
             )}
           </div>
@@ -689,9 +879,6 @@ export default function Maintenance({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div className="card-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px' }}>
             <span style={{ fontSize: 14, fontWeight: 700 }}>Maintenance Work Orders</span>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowWOModal(true)}>
-              <Plus size={14} /> Create Work Order
-            </button>
           </div>
 
           <div className="grid-2col" style={{ gridTemplateColumns: selectedWorkOrder ? '60% calc(40% - 24px)' : '1fr', gap: 24 }}>
@@ -992,8 +1179,33 @@ export default function Maintenance({
                   </div>
                   <div className="form-group">
                     <label className="form-label">Unit Specification</label>
-                    <input type="text" value={schedUnitSpec} onChange={(e) => setSchedUnitSpec(e.target.value)} placeholder="e.g. Unit 4B" className="form-input" />
+                    <select value={schedUnitSpec} onChange={(e) => setSchedUnitSpec(e.target.value)} className="form-select" required>
+                      <option value="">-- Choose Unit --</option>
+                      {loadingSchedUnits ? (
+                        <option disabled>Loading units...</option>
+                      ) : (
+                        (schedUnits || []).map(u => (
+                          <option key={u.name} value={u.name}>{u.item_name || u.name}</option>
+                        ))
+                      )}
+                    </select>
                   </div>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 12 }}>
+                  <label className="form-label">Asset (Optional)</label>
+                  <select value={schedAssetId} onChange={(e) => setSchedAssetId(e.target.value)} className="form-select">
+                    <option value="">-- Choose Asset --</option>
+                    {assetsList.filter(a => {
+                      if (!schedPropertyId) return true;
+                      const prop = (properties || []).find(p => p.id === schedPropertyId);
+                      const propName = prop ? prop.name : '';
+                      return (a.location || '').toLowerCase().includes(schedPropertyId.toLowerCase()) || 
+                             (a.location || '').toLowerCase().includes(propName.toLowerCase());
+                    }).map(a => (
+                      <option key={a.id} value={a.id}>{a.name} ({a.location || 'No Location'})</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="grid-2col" style={{ gap: 16, gridTemplateColumns: '1fr 1fr' }}>
@@ -1072,7 +1284,7 @@ export default function Maintenance({
               <div className="modal-body">
                 <div className="form-group">
                   <label className="form-label">Property group</label>
-                  <select value={selectedPropertyId} onChange={(e) => setSelectedPropertyId(e.target.value)} className="form-select" required>
+                  <select value={selectedPropertyId} onChange={(e) => setSelectedPropertyId(e.target.value)} className="form-select" required disabled={!!woScheduleId}>
                     <option value="">-- Choose Property --</option>
                     {(properties || []).map(p => (
                       <option key={p.id} value={p.id}>{p.name}</option>
@@ -1118,6 +1330,23 @@ export default function Maintenance({
                       ))}
                     </select>
                   </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Asset (Optional)</label>
+                  <select value={woAssetId} onChange={(e) => setWoAssetId(e.target.value)} className="form-select">
+                    <option value="">-- Choose Asset --</option>
+                    {assetsList.filter(a => {
+                      const propId = selectedPropertyId || woProperty;
+                      if (!propId) return true;
+                      const prop = (properties || []).find(p => p.id === propId);
+                      const propName = prop ? prop.name : '';
+                      return (a.location || '').toLowerCase().includes(propId.toLowerCase()) || 
+                             (a.location || '').toLowerCase().includes(propName.toLowerCase());
+                    }).map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="form-group">

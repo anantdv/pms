@@ -493,7 +493,11 @@ export default function Booking({ erpnextConfig }) {
             type="text" 
             placeholder="e.g. CUST-0001" 
             value={customerFilter} 
-            onChange={(e) => setCustomerFilter(e.target.value)}
+            onChange={(e) => {
+              setCustomerFilter(e.target.value);
+              // Fetch from ERPNext on change/clear
+              fetchBookings(e.target.value);
+            }}
             className="form-control"
             style={{ width: 120, padding: '4px 8px', fontSize: 12 }}
           />

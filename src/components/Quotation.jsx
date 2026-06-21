@@ -31,16 +31,75 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
   const [selectedQuotationDetail, setSelectedQuotationDetail] = useState(null);
   
   // Form states
+  // Form states
   const [quoteCustomer, setQuoteCustomer] = useState('');
   const [quoteProperty, setQuoteProperty] = useState(''); // Parent property group
-  const [quoteDate, setQuoteDate] = useState('');
-  const [quoteValidTill, setQuoteValidTill] = useState('');
-  const [quoteEstBookingStart, setQuoteEstBookingStart] = useState(''); // Estimated Booking Start Date
-  const [quoteEstBookingEnd, setQuoteEstBookingEnd] = useState('');     // Estimated Booking End Date
+  const [quoteDate, setQuoteDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [quoteValidTill, setQuoteValidTill] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().split('T')[0];
+  });
+  const [quoteEstBookingStart, setQuoteEstBookingStart] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().split('T')[0];
+  }); // Estimated Booking Start Date (from Valid Till date)
+  const [quoteEstBookingEnd, setQuoteEstBookingEnd] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 37); // 30 days from Est. Booking Start Date
+    return d.toISOString().split('T')[0];
+  });     // Estimated Booking End Date (30 days from Est. Booking Start Date)
   const [quoteTemplate, setQuoteTemplate] = useState('');             // Quotation Template
   const [quoteStatus, setQuoteStatus] = useState('Draft');
   const [quoteCompany, setQuoteCompany] = useState('CARPENTERS PROPERTIES PTE LIMITED');
-  const [quoteItems, setQuoteItems] = useState([{ unitId: '', qty: 1, uom: 'Month', standardRate: '', offeredRate: '' }]);
+  const [quoteItems, setQuoteItems] = useState([{ unitId: '', qty: 1, uom: '', standardRate: '', offeredRate: '' }]);
+  const [serviceItems, setServiceItems] = useState([{ serviceId: '', qty: 1, uom: 'Activity', standardRate: '', offeredRate: '' }]);
+
+  // Additional mock/service items list
+  const [servicesList, setServicesList] = useState([
+    { name: 'SRV-CLEAN', item_name: 'Janitorial/Cleaning Service', standard_rate: 150, stock_uom: 'Activity' },
+    { name: 'SRV-SEC', item_name: 'Security Patrol Guard', standard_rate: 250, stock_uom: 'Activity' },
+    { name: 'SRV-MAINT', item_name: 'Electrical Inspection/Maintenance Charge', standard_rate: 180, stock_uom: 'Activity' }
+  ]);
+
+  // Handle Quotation Date updates to cascade valid/booking dates
+  const handleQuoteDateChange = (val) => {
+    setQuoteDate(val);
+    const base = new Date(val);
+    if (!isNaN(base.getTime())) {
+      const valid = new Date(base);
+      valid.setDate(valid.getDate() + 7);
+      const validStr = valid.toISOString().split('T')[0];
+      setQuoteValidTill(validStr);
+      setQuoteEstBookingStart(validStr);
+
+      const end = new Date(valid);
+      end.setDate(end.getDate() + 30);
+      setQuoteEstBookingEnd(end.toISOString().split('T')[0]);
+    }
+  };
+
+  const handleValidTillChange = (val) => {
+    setQuoteValidTill(val);
+    setQuoteEstBookingStart(val);
+    const base = new Date(val);
+    if (!isNaN(base.getTime())) {
+      const end = new Date(base);
+      end.setDate(end.getDate() + 30);
+      setQuoteEstBookingEnd(end.toISOString().split('T')[0]);
+    }
+  };
+
+  const handleBookingStartChange = (val) => {
+    setQuoteEstBookingStart(val);
+    const base = new Date(val);
+    if (!isNaN(base.getTime())) {
+      const end = new Date(base);
+      end.setDate(end.getDate() + 30);
+      setQuoteEstBookingEnd(end.toISOString().split('T')[0]);
+    }
+  };
 
   // Company Details (matching Invoice format)
   const [companyDetails, setCompanyDetails] = useState({
@@ -63,7 +122,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
       try {
         const res = await fetch(`${erpnextConfig.url}/api/resource/Company/CARPENTERS PROPERTIES PTE LIMITED`, {
           credentials: 'include',
-      headers: {
+          headers: {
             'Content-Type': 'application/json'
           }
         });
@@ -79,7 +138,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
           // Fetch Address
           const addrRes = await fetch(`${erpnextConfig.url}/api/resource/Address?filters=[["Dynamic Link", "link_doctype", "=", "Company"], ["Dynamic Link", "link_name", "=", "${doc.name}"]]&fields=["address_line1","address_line2","city","state","country","pincode","phone","email_id"]`, {
             credentials: 'include',
-      headers: {
+            headers: {
               'Content-Type': 'application/json'
             }
           });
@@ -111,7 +170,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
     try {
       const res = await fetch(`${erpnextConfig.url}/api/resource/Customer?fields=["name","customer_name"]&limit_page_length=200`, {
         credentials: 'include',
-      headers: {
+        headers: {
           'Content-Type': 'application/json'
         }
       });
@@ -130,7 +189,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
     try {
       const res = await fetch(`${erpnextConfig.url}/api/resource/Property%20Group?fields=["name"]&limit_page_length=200`, {
         credentials: 'include',
-      headers: {
+        headers: {
           'Content-Type': 'application/json'
         }
       });
@@ -149,7 +208,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
     try {
       const res = await fetch(`${erpnextConfig.url}/api/resource/Quotation%20Template?fields=["name"]&limit_page_length=200`, {
         credentials: 'include',
-      headers: {
+        headers: {
           'Content-Type': 'application/json'
         }
       });
@@ -166,13 +225,13 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
   const fetchSpaceUnits = async (propertyGroupId) => {
     if (!erpnextConfig || !erpnextConfig.url) return;
     try {
-      let url = `${erpnextConfig.url}/api/resource/Item?fields=["name","item_name","standard_rate","valuation_rate","custom_property_reference"]&limit_page_length=300`;
+      let url = `${erpnextConfig.url}/api/resource/Item?fields=["name","item_name","standard_rate","valuation_rate","custom_property_reference","stock_uom"]&limit_page_length=300`;
       if (propertyGroupId) {
         url += `&filters=[["Item","custom_property_reference","=","${propertyGroupId}"]]`;
       }
       const res = await fetch(url, {
         credentials: 'include',
-      headers: {
+        headers: {
           'Content-Type': 'application/json'
         }
       });
@@ -198,7 +257,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
     try {
       const res = await fetch(`${erpnextConfig.url}/api/resource/Quotation?fields=["name","customer_name","party_name","transaction_date","valid_till","grand_total","status"]&limit_page_length=100`, {
         credentials: 'include',
-      headers: {
+        headers: {
           'Content-Type': 'application/json'
         }
       });
@@ -236,7 +295,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
     try {
       const res = await fetch(`${erpnextConfig.url}/api/resource/Quotation/${qName}`, {
         credentials: 'include',
-      headers: {
+        headers: {
           'Content-Type': 'application/json'
         }
       });
@@ -251,7 +310,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
           // Fetch Address linked to customer
           const addrRes = await fetch(`${erpnextConfig.url}/api/resource/Address?filters=[["Dynamic Link", "link_doctype", "=", "Customer"], ["Dynamic Link", "link_name", "=", "${actualCustomer}"]]&fields=["address_line1","address_line2","city","state","country","pincode"]`, {
             credentials: 'include',
-      headers: {
+            headers: {
               'Content-Type': 'application/json'
             }
           });
@@ -269,7 +328,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
           // Fetch Contact linked to customer
           const contactRes = await fetch(`${erpnextConfig.url}/api/resource/Contact?filters=[["Dynamic Link", "link_doctype", "=", "Customer"], ["Dynamic Link", "link_name", "=", "${actualCustomer}"]]&fields=["email_id","phone"]`, {
             credentials: 'include',
-      headers: {
+            headers: {
               'Content-Type': 'application/json'
             }
           });
@@ -297,7 +356,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
 
   // Form helpers
   const addQuoteItem = () => {
-    setQuoteItems([...quoteItems, { unitId: '', qty: 1, uom: 'Month', standardRate: '', offeredRate: '' }]);
+    setQuoteItems([...quoteItems, { unitId: '', qty: 1, uom: '', standardRate: '', offeredRate: '' }]);
   };
 
   const removeQuoteItem = (index) => {
@@ -310,7 +369,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
     const updated = [...quoteItems];
     updated[index][field] = value;
     
-    // Auto-populate rate if unit / item matches
+    // Auto-populate rate & UOM if unit / item matches
     if (field === 'unitId') {
       const matched = spaceUnits.find(u => u.name === value);
       if (matched) {
@@ -318,9 +377,36 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
         const valRate = matched.valuation_rate || matched.standard_rate || 0;
         updated[index].standardRate = valRate;
         updated[index].offeredRate = valRate;
+        updated[index].uom = matched.stock_uom || 'Unit';
       }
     }
     setQuoteItems(updated);
+  };
+
+  // Service Form helpers
+  const addServiceItem = () => {
+    setServiceItems([...serviceItems, { serviceId: '', qty: 1, uom: 'Activity', standardRate: '', offeredRate: '' }]);
+  };
+
+  const removeServiceItem = (index) => {
+    const updated = [...serviceItems];
+    updated.splice(index, 1);
+    setServiceItems(updated);
+  };
+
+  const handleServiceChange = (index, field, value) => {
+    const updated = [...serviceItems];
+    updated[index][field] = value;
+    if (field === 'serviceId') {
+      const matched = servicesList.find(s => s.name === value);
+      if (matched) {
+        const valRate = matched.standard_rate || 0;
+        updated[index].standardRate = valRate;
+        updated[index].offeredRate = valRate;
+        updated[index].uom = matched.stock_uom || 'Activity';
+      }
+    }
+    setServiceItems(updated);
   };
 
   // Submit new Quotation
@@ -333,7 +419,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
 
     const matchedCust = customers.find(c => c.name === quoteCustomer);
 
-    const erpItems = quoteItems.map(item => {
+    const erpItems = quoteItems.filter(item => item.unitId).map(item => {
       const matched = spaceUnits.find(u => u.name === item.unitId);
       const standardRateNum = parseFloat(item.standardRate) || 0;
       const offeredRateNum = parseFloat(item.offeredRate) || 0;
@@ -344,10 +430,35 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
         rate: offeredRateNum,
         price_list_rate: standardRateNum,
         amount: (parseFloat(item.qty) || 1) * offeredRateNum, // Offered Rate mapped to Amount column
-        uom: item.uom || 'Month',
+        uom: item.uom || 'Unit',
         item_name: matched ? matched.item_name : item.unitId
       };
     });
+
+    const erpServices = serviceItems.filter(item => item.serviceId).map(item => {
+      const matched = servicesList.find(s => s.name === item.serviceId);
+      const standardRateNum = parseFloat(item.standardRate) || 0;
+      const offeredRateNum = parseFloat(item.offeredRate) || 0;
+
+      return {
+        item_code: item.serviceId,
+        qty: parseFloat(item.qty) || 1,
+        rate: offeredRateNum,
+        price_list_rate: standardRateNum,
+        amount: (parseFloat(item.qty) || 1) * offeredRateNum,
+        uom: item.uom || 'Activity',
+        item_name: matched ? matched.item_name : item.serviceId
+      };
+    });
+
+    // Merge both child tables for item and post as quotation child item for erpnext
+    const mergedItems = [...erpItems, ...erpServices];
+
+    if (mergedItems.length === 0) {
+      setErrorMsg('You must add at least one Property Unit or Service Item.');
+      setSubmitting(false);
+      return;
+    }
 
     const payload = {
       customer: quoteCustomer,
@@ -363,7 +474,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
       custom_start_date: quoteEstBookingStart || null,
       custom_end_date: quoteEstBookingEnd || null,
       custom_template: quoteTemplate || null,
-      items: erpItems
+      items: mergedItems
     };
 
     try {
@@ -406,12 +517,9 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
       // Reset form
       setQuoteCustomer('');
       setQuoteProperty('');
-      setQuoteDate('');
-      setQuoteValidTill('');
-      setQuoteEstBookingStart('');
-      setQuoteEstBookingEnd('');
       setQuoteTemplate('');
-      setQuoteItems([{ unitId: '', qty: 1, uom: 'Month', standardRate: '', offeredRate: '' }]);
+      setQuoteItems([{ unitId: '', qty: 1, uom: '', standardRate: '', offeredRate: '' }]);
+      setServiceItems([{ serviceId: '', qty: 1, uom: 'Activity', standardRate: '', offeredRate: '' }]);
     } catch (err) {
       setErrorMsg(err.message);
     } finally {
@@ -428,7 +536,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
         const res = await fetch(`${erpnextConfig.url}/api/resource/Quotation/${qName}`, {
           method: 'PUT',
           credentials: 'include',
-      headers: {
+          headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ status: 'Cancelled' })
@@ -813,7 +921,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
                     <input 
                       type="date" 
                       value={quoteDate} 
-                      onChange={(e) => setQuoteDate(e.target.value)} 
+                      onChange={(e) => handleQuoteDateChange(e.target.value)} 
                       className="form-input" 
                       required 
                       disabled={submitting} 
@@ -824,7 +932,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
                     <input 
                       type="date" 
                       value={quoteValidTill} 
-                      onChange={(e) => setQuoteValidTill(e.target.value)} 
+                      onChange={(e) => handleValidTillChange(e.target.value)} 
                       className="form-input" 
                       required 
                       disabled={submitting} 
@@ -839,7 +947,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
                     <input 
                       type="date" 
                       value={quoteEstBookingStart} 
-                      onChange={(e) => setQuoteEstBookingStart(e.target.value)} 
+                      onChange={(e) => handleBookingStartChange(e.target.value)} 
                       className="form-input" 
                       disabled={submitting} 
                     />
@@ -867,7 +975,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
                   >
                     <option value="">-- Choose Template --</option>
                     {templates.map(t => (
-                      <option key={t.name} value={t.name}>{t.template_name || t.name}</option>
+                      <option key={t.name} value={t.name}>{t.name}</option>
                     ))}
                   </select>
                 </div>
@@ -875,31 +983,29 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
                 {/* Multiple Quotation Items list editor */}
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <label className="form-label" style={{ margin: 0 }}>Quotation Items</label>
+                    <label className="form-label" style={{ margin: 0 }}>Property Units (Items)</label>
                     <button type="button" className="btn btn-secondary btn-sm" onClick={addQuoteItem} style={{ padding: '4px 8px', fontSize: 10 }}>
-                      + Add Item
+                      + Add Unit Space
                     </button>
                   </div>
                   
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 200, overflowY: 'auto', paddingRight: 4 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 180, overflowY: 'auto', paddingRight: 4, marginBottom: 14 }}>
                     {quoteItems.map((item, idx) => (
-                      <div key={idx} style={{ display: 'flex', gap: 10, alignItems: 'center', background: 'var(--bg-tertiary)', padding: 10, borderRadius: 6 }}>
-                        <div style={{ flex: 1.8 }} className="form-group">
-                          <label style={{ fontSize: 9, color: 'var(--text-muted)' }}>Unit / Item</label>
+                      <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'var(--bg-tertiary)', padding: 10, borderRadius: 6 }}>
+                        <div style={{ flex: 2 }} className="form-group" style={{ margin: 0 }}>
                           <select 
                             value={item.unitId} 
                             onChange={(e) => handleItemChange(idx, 'unitId', e.target.value)}
                             className="form-select"
                             required
                           >
-                            <option value="">-- Choose Unit --</option>
+                            <option value="">-- Choose Unit Space --</option>
                             {spaceUnits.map(unit => (
                               <option key={unit.name} value={unit.name}>{unit.item_name || unit.name}</option>
                             ))}
                           </select>
                         </div>
-                        <div style={{ flex: 0.6 }} className="form-group">
-                          <label style={{ fontSize: 9, color: 'var(--text-muted)' }}>Qty</label>
+                        <div style={{ flex: 0.6 }} className="form-group" style={{ margin: 0 }}>
                           <input 
                             type="number" 
                             min="1"
@@ -907,22 +1013,19 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
                             onChange={(e) => handleItemChange(idx, 'qty', e.target.value)}
                             className="form-input" 
                             required
+                            placeholder="Qty"
                           />
                         </div>
-                        <div style={{ flex: 0.8 }} className="form-group">
-                          <label style={{ fontSize: 9, color: 'var(--text-muted)' }}>UOM</label>
-                          <select 
-                            value={item.uom} 
-                            onChange={(e) => handleItemChange(idx, 'uom', e.target.value)}
-                            className="form-select"
-                          >
-                            <option value="Month">Month</option>
-                            <option value="Unit">Unit</option>
-                            <option value="Year">Year</option>
-                          </select>
+                        <div style={{ flex: 0.8 }} className="form-group" style={{ margin: 0 }}>
+                          <input 
+                            type="text" 
+                            value={item.uom || 'Unit'} 
+                            className="form-input" 
+                            disabled
+                            placeholder="UOM"
+                          />
                         </div>
-                        <div style={{ flex: 0.8 }} className="form-group">
-                          <label style={{ fontSize: 9, color: 'var(--text-muted)' }}>Standard Rate</label>
+                        <div style={{ flex: 0.8 }} className="form-group" style={{ margin: 0 }}>
                           <input 
                             type="number" 
                             placeholder="Std Rate" 
@@ -932,11 +1035,10 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
                             required
                           />
                         </div>
-                        <div style={{ flex: 0.8 }} className="form-group">
-                          <label style={{ fontSize: 9, color: 'var(--text-muted)' }}>Offered Rate</label>
+                        <div style={{ flex: 0.8 }} className="form-group" style={{ margin: 0 }}>
                           <input 
                             type="number" 
-                            placeholder="Offered Rate" 
+                            placeholder="Offered" 
                             value={item.offeredRate} 
                             onChange={(e) => handleItemChange(idx, 'offeredRate', e.target.value)}
                             className="form-input" 
@@ -944,7 +1046,7 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
                           />
                         </div>
                         {quoteItems.length > 1 && (
-                          <button type="button" onClick={() => removeQuoteItem(idx)} style={{ background: 'none', border: 'none', color: 'var(--color-danger)', cursor: 'pointer', marginTop: 14 }}>
+                          <button type="button" onClick={() => removeQuoteItem(idx)} style={{ background: 'none', border: 'none', color: 'var(--color-danger)', cursor: 'pointer' }}>
                             <Trash size={16} />
                           </button>
                         )}
@@ -952,6 +1054,82 @@ export default function Quotation({ erpnextConfig, properties = [] }) {
                     ))}
                   </div>
                 </div>
+
+                {/* Secondary Child Table: Service Items */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <label className="form-label" style={{ margin: 0 }}>Service Add-ons (Items)</label>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={addServiceItem} style={{ padding: '4px 8px', fontSize: 10 }}>
+                      + Add Service
+                    </button>
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
+                    {serviceItems.map((item, idx) => (
+                      <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'var(--bg-tertiary)', padding: 10, borderRadius: 6 }}>
+                        <div style={{ flex: 2 }} className="form-group" style={{ margin: 0 }}>
+                          <select 
+                            value={item.serviceId} 
+                            onChange={(e) => handleServiceChange(idx, 'serviceId', e.target.value)}
+                            className="form-select"
+                            required
+                          >
+                            <option value="">-- Choose Service --</option>
+                            {servicesList.map(srv => (
+                              <option key={srv.name} value={srv.name}>{srv.item_name} (${srv.standard_rate})</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div style={{ flex: 0.6 }} className="form-group" style={{ margin: 0 }}>
+                          <input 
+                            type="number" 
+                            min="1"
+                            value={item.qty} 
+                            onChange={(e) => handleServiceChange(idx, 'qty', e.target.value)}
+                            className="form-input" 
+                            required
+                            placeholder="Qty"
+                          />
+                        </div>
+                        <div style={{ flex: 0.8 }} className="form-group" style={{ margin: 0 }}>
+                          <input 
+                            type="text" 
+                            value={item.uom || 'Activity'} 
+                            className="form-input" 
+                            disabled
+                            placeholder="UOM"
+                          />
+                        </div>
+                        <div style={{ flex: 0.8 }} className="form-group" style={{ margin: 0 }}>
+                          <input 
+                            type="number" 
+                            placeholder="Std Rate" 
+                            value={item.standardRate} 
+                            onChange={(e) => handleServiceChange(idx, 'standardRate', e.target.value)}
+                            className="form-input" 
+                            required
+                          />
+                        </div>
+                        <div style={{ flex: 0.8 }} className="form-group" style={{ margin: 0 }}>
+                          <input 
+                            type="number" 
+                            placeholder="Offered" 
+                            value={item.offeredRate} 
+                            onChange={(e) => handleServiceChange(idx, 'offeredRate', e.target.value)}
+                            className="form-input" 
+                            required
+                          />
+                        </div>
+                        {serviceItems.length > 1 && (
+                          <button type="button" onClick={() => removeServiceItem(idx)} style={{ background: 'none', border: 'none', color: 'var(--color-danger)', cursor: 'pointer' }}>
+                            <Trash size={16} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
               </div>
               
               <div className="modal-footer">

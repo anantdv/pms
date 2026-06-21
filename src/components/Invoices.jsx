@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { DollarSign, Printer, ArrowDownRight, ArrowUpRight, Plus, X, FileText, CheckCircle2, Calculator, Landmark } from 'lucide-react';
+import { DollarSign, Printer, ArrowDownRight, ArrowUpRight, Plus, X, FileText, CheckCircle2, Calculator, Landmark, Mail } from 'lucide-react';
 
 const numberToWords = (num) => {
   const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
@@ -274,7 +273,7 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
   // GL and Trial Balance Calculation from existing invoices
   const totalInvoicesValue = invoices.reduce((acc, i) => acc + i.amount, 0);
   const totalPaid = invoices.filter(i => i.status === 'paid').reduce((acc, i) => acc + i.amount, 0);
-  const totalPending = invoices.filter(i => i.status === 'pending').reduce((acc, i) => acc + i.amount, 0);
+  const totalPending = invoices.reduce((acc, i) => acc + (i.outstandingAmount !== undefined ? i.outstandingAmount : (i.status === 'pending' ? i.amount : 0)), 0);
 
   return (
     <div>
@@ -375,7 +374,12 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e5e7eb', paddingBottom: 14 }}>
               {/* Top Left: Logo & Owner Details */}
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <img src="/logo.svg" style={{ width: 42, height: 42, borderRadius: 6, display: 'inline-block' }} alt="Logo" />
+                <svg viewBox="0 0 100 100" style={{ width: 42, height: 42, minWidth: 42, borderRadius: 6, display: 'inline-block' }}>
+                  <rect width="100" height="100" fill="#000000" rx="12"/>
+                  <circle cx="50" cy="50" r="36" fill="#FFDD00"/>
+                  <polygon points="50,50 86,14 100,14 100,86 86,86" fill="#000000"/>
+                  <line x1="24" y1="76" x2="50" y2="50" stroke="#000000" strokeWidth="5.5" strokeLinecap="round"/>
+                </svg>
                 <div style={{ fontSize: 10, color: '#4b5563', lineHeight: 1.3 }}>
                   <h4 style={{ color: '#111827', fontWeight: 800, fontSize: 13, marginBottom: 4, letterSpacing: '0.02em' }}>{companyDetails.name}</h4>
                   <p>{companyDetails.address}</p>
@@ -437,7 +441,7 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
                 const baseRent = Math.round(selectedInvoice.amount * 0.8);
                 const serviceCharge = Math.round(selectedInvoice.amount * 0.12);
                 const propertyTax = Math.round(selectedInvoice.amount * 0.08);
-                const gstVal = Math.round(selectedInvoice.amount * 0.09);
+                const vatVal = Math.round(selectedInvoice.amount * 0.125);
                 const periodStr = getBillingPeriod(selectedInvoice.issuedDate);
 
                 return (
@@ -470,12 +474,12 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
                         <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#374151' }}>{selectedInvoice.amount.toLocaleString()}.00</td>
                       </tr>
                       <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                        <td colSpan="2" style={{ padding: '8px 10px', color: '#4b5563', fontWeight: 600, textAlign: 'right' }}>GST (9%)</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{gstVal.toLocaleString()}.00</td>
+                        <td colSpan="2" style={{ padding: '8px 10px', color: '#4b5563', fontWeight: 600, textAlign: 'right' }}>VAT (12.5%)</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{vatVal.toLocaleString()}.00</td>
                       </tr>
                       <tr style={{ background: '#f3f4f6', borderTop: '2px solid #e5e7eb' }}>
                         <td colSpan="2" style={{ padding: '8px 10px', fontWeight: 800, color: '#111827', textAlign: 'right' }}>Total Amount Due ({activeCurrency})</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#111827', fontSize: 11 }}>{(selectedInvoice.amount + gstVal).toLocaleString()}.00</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#111827', fontSize: 11 }}>{(selectedInvoice.amount + vatVal).toLocaleString()}.00</td>
                       </tr>
                     </tbody>
                   </table>
@@ -486,7 +490,7 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
             {/* AMOUNT IN WORDS */}
             <div style={{ background: '#f9fafb', padding: '10px 12px', borderRadius: 4, fontSize: 10, color: '#374151', borderLeft: '3px solid #1f2937' }}>
               <span style={{ fontWeight: 700, textTransform: 'uppercase', display: 'block', fontSize: 8, color: '#6b7280', marginBottom: 2 }}>Amount in Words:</span>
-              <strong>{numberToWords(Math.round(selectedInvoice.amount * 1.09))}</strong>
+               <strong>{numberToWords(Math.round(selectedInvoice.amount * 1.125))}</strong>
             </div>
 
             {/* BOTTOM SECTION: BANK & TERMS & QR */}
@@ -536,16 +540,14 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
               </div>
             </div>
 
-            {/* Terms and Conditions Collapsible */}
-            {showTerms && (
-              <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 'var(--radius-md)', padding: 12, fontSize: 9, color: '#4b5563', animation: 'slideDown 0.2s ease-out' }}>
-                <strong style={{ color: '#111827', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Terms & Conditions</strong>
-                <p>1. Settle all invoice amounts within 10 days of the date of issue.</p>
-                <p>2. Overdue payments will be charged interest at a rate of 1.5% per month.</p>
-                <p>3. Payments are subject to standard Singapore Carpenters commercial tenant policies.</p>
-                <p>4. Billing disputes must be raised in writing within 5 business days of receipt.</p>
-              </div>
-            )}
+            {/* Terms and Conditions Collapsible - Statically Rendered */}
+            <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 'var(--radius-md)', padding: 12, fontSize: 9, color: '#4b5563' }}>
+              <strong style={{ color: '#111827', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Terms & Conditions</strong>
+              <p>1. Settle all invoice amounts within 10 days of the date of issue.</p>
+              <p>2. Overdue payments will be charged interest at a rate of 1.5% per month.</p>
+              <p>3. Payments are subject to standard Singapore Carpenters commercial tenant policies.</p>
+              <p>4. Billing disputes must be raised in writing within 5 business days of receipt.</p>
+            </div>
 
             {/* Action buttons */}
             <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -571,9 +573,11 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
               <button 
                 className="btn btn-secondary" 
                 style={{ flex: 1, minWidth: 120, fontSize: 11, gap: 6, borderColor: '#d1d5db', color: '#374151', background: '#f9fafb' }}
-                onClick={() => setShowTerms(!showTerms)}
+                onClick={() => {
+                  alert(`Emailing Tax Invoice ${selectedInvoice.id} to tenant address: ${invoiceDetailsExtra?.customerAddress || 'Customer registered address'}`);
+                }}
               >
-                Terms & Conditions
+                <Mail size={13} /> Send Email
               </button>
             </div>
           </div>
@@ -745,13 +749,25 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
       {/* Print Receipt Modal */}
       {activeReceipt && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: 650, padding: 30, background: '#ffffff', color: '#111827', borderRadius: 'var(--radius-lg)' }}>
+          <div className="modal-content" style={{ position: 'relative', maxWidth: 650, padding: 30, background: '#ffffff', color: '#111827', borderRadius: 'var(--radius-lg)' }}>
             
+            <button 
+              onClick={() => setActiveReceipt(null)}
+              style={{ position: 'absolute', top: 12, right: 12, background: '#f3f4f6', border: 'none', borderRadius: '50%', color: '#374151', cursor: 'pointer', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 16 }}
+            >
+              ×
+            </button>
+
             {/* TOP HEADER SECTION */}
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e5e7eb', paddingBottom: 14, marginBottom: 16 }}>
               {/* Top Left: Logo & Owner Details */}
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <img src="/logo.svg" style={{ width: 42, height: 42, borderRadius: 6, display: 'inline-block' }} alt="Logo" />
+                <svg viewBox="0 0 100 100" style={{ width: 42, height: 42, minWidth: 42, borderRadius: 6, display: 'inline-block' }}>
+                  <rect width="100" height="100" fill="#000000" rx="12"/>
+                  <circle cx="50" cy="50" r="36" fill="#FFDD00"/>
+                  <polygon points="50,50 86,14 100,14 100,86 86,86" fill="#000000"/>
+                  <line x1="24" y1="76" x2="50" y2="50" stroke="#000000" strokeWidth="5.5" strokeLinecap="round"/>
+                </svg>
                 <div style={{ fontSize: 10, color: '#4b5563', lineHeight: 1.3 }}>
                   <h4 style={{ color: '#111827', fontWeight: 800, fontSize: 14, marginBottom: 4, letterSpacing: '0.02em' }}>{companyDetails.name}</h4>
                   <p>{companyDetails.address}</p>
@@ -846,12 +862,12 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
                         <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#374151' }}>{activeReceipt.amount.toLocaleString()}.00</td>
                       </tr>
                       <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                        <td colSpan="2" style={{ padding: '8px 10px', color: '#4b5563', fontWeight: 600, textAlign: 'right' }}>GST (9%)</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{gstVal.toLocaleString()}.00</td>
+                        <td colSpan="2" style={{ padding: '8px 10px', color: '#4b5563', fontWeight: 600, textAlign: 'right' }}>VAT (12.5%)</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{vatVal.toLocaleString()}.00</td>
                       </tr>
                       <tr style={{ background: '#f3f4f6', borderTop: '2px solid #e5e7eb' }}>
                         <td colSpan="2" style={{ padding: '8px 10px', fontWeight: 800, color: '#111827', textAlign: 'right' }}>Total Amount Due ({activeCurrency})</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#111827', fontSize: 11 }}>{(activeReceipt.amount + gstVal).toLocaleString()}.00</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#111827', fontSize: 11 }}>{(activeReceipt.amount + vatVal).toLocaleString()}.00</td>
                       </tr>
                     </tbody>
                   </table>
@@ -862,7 +878,7 @@ export default function Invoices({ invoices, accounts = [], glEntries = [], onAd
             {/* AMOUNT IN WORDS */}
             <div style={{ background: '#f9fafb', padding: '10px 12px', borderRadius: 4, fontSize: 10, color: '#374151', borderLeft: '3px solid #1f2937', marginBottom: 16 }}>
               <span style={{ fontWeight: 700, textTransform: 'uppercase', display: 'block', fontSize: 8, color: '#6b7280', marginBottom: 2 }}>Amount in Words:</span>
-              <strong>{numberToWords(Math.round(activeReceipt.amount * 1.09))}</strong>
+              <strong>{numberToWords(Math.round(activeReceipt.amount * 1.125))}</strong>
             </div>
 
             {/* BOTTOM SECTION: BANK & TERMS & QR */}

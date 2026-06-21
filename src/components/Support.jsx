@@ -171,10 +171,68 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
     );
   };
 
-  // Convert Ticket to Maintenance Schedule / Work Order
-  const handleConvertToMaintenance = (ticket) => {
-    alert(`Converting Ticket ${ticket.id} into a Maintenance Request & generating Work Order...`);
-    setLocalTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, status: 'assigned', lastUpdated: 'Just now' } : t));
+  // Convert Ticket to Maintenance Schedule
+  const getCsrfToken = () => {
+    const cookieValue = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('sid='))
+      ?.split('=')[1];
+    return cookieValue || '';
+  };
+
+  const handleConvertToMaintenance = async (ticket) => {
+    alert(`Converting Ticket ${ticket.id} into an ERPNext Maintenance Schedule...`);
+    
+    const payload = {
+      customer: ticket.customerId || ticket.tenantName || 'Customer-N/A',
+      transaction_date: new Date().toISOString().split('T')[0],
+      custom_property: ticket.propertyId || 'PROP-2041',
+      periodicity: 'One-time',
+      items: [
+        {
+          item_code: ticket.unitSpec || 'General Item',
+          start_date: new Date().toISOString().split('T')[0],
+          end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          periodicity: 'One-time',
+          description: ticket.subject || ticket.issueType || 'Maintenance requested via Helpdesk Support Ticket'
+        }
+      ],
+      schedules: [
+        {
+          item_code: ticket.unitSpec || 'General Item',
+          scheduled_date: new Date().toISOString().split('T')[0],
+          completion_status: 'Pending'
+        }
+      ]
+    };
+
+    if (erpnextConfig && erpnextConfig.url) {
+      try {
+        const csrfToken = getCsrfToken();
+        const res = await fetch(`${erpnextConfig.url}/api/resource/Maintenance%20Schedule`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrfToken ? { 'X-Frappe-CSRF-Token': csrfToken } : {})
+          },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          alert('Maintenance Schedule successfully created in ERPNext!');
+          setLocalTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, status: 'assigned', lastUpdated: 'Just now' } : t));
+        } else {
+          const errMsg = await res.text();
+          console.warn('Failed to create maintenance schedule in ERPNext:', errMsg);
+          alert(`Failed to create Maintenance Schedule: ${errMsg}`);
+        }
+      } catch (err) {
+        console.error('Error converting ticket:', err);
+        alert(`Error: ${err.message}`);
+      }
+    } else {
+      setLocalTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, status: 'assigned', lastUpdated: 'Just now' } : t));
+    }
   };
 
   // Handle status update
@@ -688,7 +746,7 @@ export default function Support({ tickets, onAddMessage, onCreateIssue, tenants 
                           style={{ padding: '5px 10px', fontSize: 10 }}
                           onClick={() => handleConvertToMaintenance(selectedTicket)}
                         >
-                          Convert to WO
+                          Convert to Maintenance Schedule
                         </button>
                         <select 
                           value={selectedTicket.status} 
